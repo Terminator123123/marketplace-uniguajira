@@ -1,0 +1,8 @@
+{
+  "paths": [
+    "env.example",
+    "env.template"
+  ],
+  "domains": [],
+  "commands": []
+}

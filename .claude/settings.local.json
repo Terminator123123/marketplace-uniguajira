@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem *)",
+      "Skill(update-config)",
+      "PowerShell(npm *)",
+      "PowerShell(New-Item *)"
+    ]
+  }
+}

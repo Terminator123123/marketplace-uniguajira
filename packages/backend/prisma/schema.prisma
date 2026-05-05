@@ -1,0 +1,181 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // En tu archivo .env usa: POSTGRES_URL="postgresql://..."
+  url      = env("POSTGRES_URL")
+}
+
+enum UserRole {
+  vendedor
+  comprador
+  admin
+}
+
+enum TiendaEstado {
+  pendiente
+  activa
+  suspendida
+}
+
+enum ProductoTipo {
+  fisico
+  servicio
+}
+
+enum OrdenEstado {
+  pendiente
+  pagada
+  en_entrega
+  completada
+  cancelada
+}
+
+enum MetodoPago {
+  nequi
+  daviplata
+  pse
+}
+
+model Usuario {
+  id_usuario      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre          String   @db.VarChar(100)
+  email           String   @unique @db.VarChar(150)
+  password_hash   String   @db.VarChar(255)
+  rol             UserRole @default(comprador)
+  facultad        String?  @db.VarChar(100)
+  bio             String?
+  foto_url        String?  @db.VarChar(255)
+  rating_promedio Decimal  @default(0) @db.Decimal(3, 2)
+  activo          Boolean  @default(false)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  tienda   Tienda?
+  ordenes  Orden[]   @relation("ComprasPor")
+  resenas  Resena[]  @relation("ResenasPor")
+  mensajes Mensaje[]
+
+  @@map("usuarios")
+}
+
+model Tienda {
+  id_tienda     String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_vendedor   String       @unique @db.Uuid
+  nombre_tienda String       @db.VarChar(100)
+  descripcion   String?
+  banner_url    String?      @db.VarChar(255)
+  estado        TiendaEstado @default(pendiente)
+  created_at    DateTime     @default(now())
+
+  vendedor  Usuario    @relation(fields: [id_vendedor], references: [id_usuario])
+  productos Producto[]
+
+  @@map("tiendas")
+}
+
+model Producto {
+  id_producto String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_tienda   String       @db.Uuid
+  id_vendedor String       @db.Uuid
+  nombre      String       @db.VarChar(200)
+  descripcion String?
+  precio      Decimal      @db.Decimal(12, 2)
+  tipo        ProductoTipo
+  categoria   String       @db.VarChar(50)
+  stock       Int?
+  activo      Boolean      @default(true)
+  vistas      Int          @default(0)
+  created_at  DateTime     @default(now())
+  updated_at  DateTime     @updatedAt
+
+  tienda   Tienda           @relation(fields: [id_tienda], references: [id_tienda])
+  imagenes ImagenProducto[]
+  items    ItemOrden[]
+  resenas  Resena[]
+
+  @@index([categoria, tipo, activo])
+  @@index([id_tienda, activo])
+  @@index([precio])
+  @@map("productos")
+}
+
+model ImagenProducto {
+  id_imagen    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_producto  String   @db.Uuid
+  url          String   @db.VarChar(255)
+  orden        Int
+  es_principal Boolean  @default(false)
+
+  producto Producto @relation(fields: [id_producto], references: [id_producto])
+
+  @@map("imagenes_producto")
+}
+
+model Orden {
+  id_orden        String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_comprador    String      @db.Uuid
+  total           Decimal     @db.Decimal(12, 2)
+  estado          OrdenEstado @default(pendiente)
+  metodo_pago     MetodoPago
+  referencia_pago String?     @db.VarChar(100)
+  created_at      DateTime    @default(now())
+  updated_at      DateTime    @updatedAt
+
+  comprador Usuario   @relation("ComprasPor", fields: [id_comprador], references: [id_usuario])
+  items     ItemOrden[]
+  resenas   Resena[]
+  mensajes  Mensaje[]
+
+  @@index([id_comprador, created_at(sort: Desc)])
+  @@index([estado])
+  @@map("ordenes")
+}
+
+model ItemOrden {
+  id_item         String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_orden        String  @db.Uuid
+  id_producto     String  @db.Uuid
+  cantidad        Int
+  precio_unitario Decimal @db.Decimal(12, 2)
+  subtotal        Decimal @db.Decimal(12, 2)
+
+  orden    Orden    @relation(fields: [id_orden], references: [id_orden])
+  producto Producto @relation(fields: [id_producto], references: [id_producto])
+
+  @@map("items_orden")
+}
+
+model Resena {
+  id_resena    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_orden     String   @db.Uuid
+  id_comprador String   @db.Uuid
+  id_producto  String   @db.Uuid
+  estrellas    Int      @db.SmallInt
+  comentario   String?
+  created_at   DateTime @default(now())
+
+  orden     Orden    @relation(fields: [id_orden], references: [id_orden])
+  comprador Usuario  @relation("ResenasPor", fields: [id_comprador], references: [id_usuario])
+  producto  Producto @relation(fields: [id_producto], references: [id_producto])
+
+  @@unique([id_orden, id_producto])
+  @@map("resenas")
+}
+
+model Mensaje {
+  id_mensaje   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_orden     String   @db.Uuid
+  id_remitente String   @db.Uuid
+  contenido    String
+  leido        Boolean  @default(false)
+  created_at   DateTime @default(now())
+
+  orden     Orden   @relation(fields: [id_orden], references: [id_orden])
+  remitente Usuario @relation(fields: [id_remitente], references: [id_usuario])
+
+  @@index([id_orden, created_at(sort: Asc)])
+  @@map("mensajes")
+}
