@@ -1,6 +1,6 @@
 [build]
 builder = "NIXPACKS"
-buildCommand = "cd ../.. && npm install && npm run build --workspace=packages/shared && cd packages/backend && npx prisma generate && npx tsc"
+buildCommand = "npm run build --workspace=packages/shared && cd packages/backend && npx prisma generate && npx tsc"
 
 [deploy]
 startCommand = "node dist/index.js"
