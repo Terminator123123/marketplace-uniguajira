@@ -1,10 +1,14 @@
 import { Outlet, Link, useNavigate } from 'react-router-dom'
-import { ShoppingBag, LogOut, LayoutDashboard } from 'lucide-react'
+import { ShoppingBag, LogOut, LayoutDashboard, ShoppingCart } from 'lucide-react'
 import { useAuthStore } from '../store/auth.ts'
+import { useCartStore } from '../store/cart.ts'
+import CartDrawer from './CartDrawer.tsx'
 
 export default function Layout() {
   const { usuario, logout } = useAuthStore()
+  const { totalItems, setOpen } = useCartStore()
   const navigate = useNavigate()
+  const cantItems = totalItems()
 
   function handleLogout() {
     logout()
@@ -24,15 +28,26 @@ export default function Layout() {
             <Link to="/catalogo" className="hover:text-orange-300 transition-colors">
               Catálogo
             </Link>
+
+            {/* Ícono carrito */}
+            <button onClick={() => setOpen(true)} className="relative hover:text-orange-300 transition-colors">
+              <ShoppingCart size={22} />
+              {cantItems > 0 && (
+                <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                  {cantItems > 99 ? '99+' : cantItems}
+                </span>
+              )}
+            </button>
+
             {usuario ? (
               <>
-                {usuario.rol === 'vendedor' && (
+                {(usuario.rol === 'vendedor' || usuario.rol === 'admin') && (
                   <Link to="/dashboard" className="flex items-center gap-1 hover:text-orange-300 transition-colors">
                     <LayoutDashboard size={16} />
                     Dashboard
                   </Link>
                 )}
-                <span className="text-green-200 text-sm">{usuario.nombre}</span>
+                <span className="text-green-200 text-sm hidden sm:block">{usuario.nombre}</span>
                 <button onClick={handleLogout} className="flex items-center gap-1 hover:text-orange-300 transition-colors">
                   <LogOut size={16} />
                 </button>
@@ -50,6 +65,8 @@ export default function Layout() {
       <main className="flex-1">
         <Outlet />
       </main>
+
+      <CartDrawer />
 
       <footer className="bg-gray-800 text-gray-400 text-center py-4 text-sm">
         © 2026 Marketplace Uniguajira — Universidad de La Guajira

@@ -1,11 +1,36 @@
+# Dependencias
 node_modules/
+
+# Build
 dist/
 build/
+packages/shared/dist/
+
+# Variables de entorno — NUNCA subir al repo
 .env
 .env.local
+.env.*.local
+.env.production
+
+# Prisma
+packages/backend/prisma/migrations/*.sql.bak
+
+# Logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+
+# OS
 .DS_Store
 Thumbs.db
+
+# Cache
 .cache/
+.vite/
 coverage/
-packages/shared/dist/
+
+# Editor
+.vscode/settings.json
+.idea/
+*.swp
+*.swo

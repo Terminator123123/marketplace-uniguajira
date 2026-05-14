@@ -1,7 +1,14 @@
 import { Link } from 'react-router-dom'
 import { ShoppingBag, Star, Shield, Zap } from 'lucide-react'
+import { useAuthStore } from '../store/auth.ts'
 
 export default function HomePage() {
+  const usuario = useAuthStore(s => s.usuario)
+  const esVendedor = usuario?.rol === 'vendedor' || usuario?.rol === 'admin'
+
+  const ctaTiendaHref = usuario ? '/dashboard' : '/register'
+  const ctaTiendaLabel = esVendedor ? 'Ir a mi tienda' : usuario ? 'Ir al dashboard' : 'Crear tienda'
+
   return (
     <div>
       {/* Hero */}
@@ -18,8 +25,8 @@ export default function HomePage() {
             <Link to="/catalogo" className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-6 py-3 rounded-lg transition-colors">
               Ver catálogo
             </Link>
-            <Link to="/register" className="border border-white hover:bg-white hover:text-green-800 text-white font-semibold px-6 py-3 rounded-lg transition-colors">
-              Crear tienda
+            <Link to={ctaTiendaHref} className="border border-white hover:bg-white hover:text-green-800 text-white font-semibold px-6 py-3 rounded-lg transition-colors">
+              {ctaTiendaLabel}
             </Link>
           </div>
         </div>
@@ -47,13 +54,15 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="bg-orange-50 py-16 px-4 text-center">
-        <ShoppingBag size={48} className="mx-auto text-orange-500 mb-4" />
-        <h2 className="text-2xl font-bold text-gray-800 mb-3">¿Tienes un emprendimiento?</h2>
-        <p className="text-gray-600 mb-6">Regístrate con tu correo institucional y empieza a vender hoy.</p>
-        <Link to="/register" className="btn-primary inline-block">Crear mi tienda gratis</Link>
-      </section>
+      {/* CTA — solo visible si no está logueado */}
+      {!usuario && (
+        <section className="bg-orange-50 py-16 px-4 text-center">
+          <ShoppingBag size={48} className="mx-auto text-orange-500 mb-4" />
+          <h2 className="text-2xl font-bold text-gray-800 mb-3">¿Tienes un emprendimiento?</h2>
+          <p className="text-gray-600 mb-6">Regístrate con tu correo institucional y empieza a vender hoy.</p>
+          <Link to="/register" className="btn-primary inline-block">Crear mi tienda gratis</Link>
+        </section>
+      )}
     </div>
   )
 }

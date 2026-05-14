@@ -4,7 +4,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  // En tu archivo .env usa: POSTGRES_URL="postgresql://..."
   url      = env("POSTGRES_URL")
 }
 
@@ -39,26 +38,78 @@ enum MetodoPago {
   pse
 }
 
-model Usuario {
-  id_usuario      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  nombre          String   @db.VarChar(100)
-  email           String   @unique @db.VarChar(150)
-  password_hash   String   @db.VarChar(255)
-  rol             UserRole @default(comprador)
-  facultad        String?  @db.VarChar(100)
-  bio             String?
-  foto_url        String?  @db.VarChar(255)
-  rating_promedio Decimal  @default(0) @db.Decimal(3, 2)
-  activo          Boolean  @default(false)
-  created_at      DateTime @default(now())
-  updated_at      DateTime @updatedAt
+enum SolicitudEstado {
+  pendiente
+  aprobada
+  rechazada
+}
 
-  tienda   Tienda?
-  ordenes  Orden[]   @relation("ComprasPor")
-  resenas  Resena[]  @relation("ResenasPor")
-  mensajes Mensaje[]
+model Usuario {
+  id_usuario       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre           String   @db.VarChar(100)
+  email            String   @unique @db.VarChar(150)
+  password_hash    String   @db.VarChar(255)
+  rol              UserRole @default(comprador)
+  facultad         String?  @db.VarChar(100)
+  bio              String?
+  foto_url         String?  @db.VarChar(255)
+  rating_promedio  Decimal  @default(0) @db.Decimal(3, 2)
+  activo             Boolean   @default(false)
+  email_verificado   Boolean   @default(false)
+  intentos_fallidos  Int       @default(0)
+  bloqueado_hasta    DateTime?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+
+  tienda               Tienda?
+  ordenes              Orden[]               @relation("ComprasPor")
+  resenas              Resena[]              @relation("ResenasPor")
+  mensajes             Mensaje[]
+  solicitudes          SolicitudRol[]
+  tokens_recuperacion  TokenRecuperacion[]
+  tokens_verificacion  TokenVerificacion[]
 
   @@map("usuarios")
+}
+
+model TokenVerificacion {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_usuario String   @db.Uuid
+  token      String   @unique @db.VarChar(100)
+  expira_en  DateTime
+  created_at DateTime @default(now())
+
+  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
+
+  @@map("tokens_verificacion")
+}
+
+model TokenRecuperacion {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_usuario String   @db.Uuid
+  token      String   @unique @db.VarChar(100)
+  expira_en  DateTime
+  usado      Boolean  @default(false)
+  created_at DateTime @default(now())
+
+  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@map("tokens_recuperacion")
+}
+
+model SolicitudRol {
+  id_solicitud   String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_usuario     String          @db.Uuid
+  rol_solicitado UserRole
+  motivacion     String?
+  estado         SolicitudEstado @default(pendiente)
+  created_at     DateTime        @default(now())
+  updated_at     DateTime        @updatedAt
+
+  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@index([estado])
+  @@map("solicitudes_rol")
 }
 
 model Tienda {
@@ -105,7 +156,8 @@ model Producto {
 model ImagenProducto {
   id_imagen    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   id_producto  String   @db.Uuid
-  url          String   @db.VarChar(255)
+  url          String   @db.VarChar(500)
+  public_id    String?  @db.VarChar(255)
   orden        Int
   es_principal Boolean  @default(false)
 
@@ -124,7 +176,7 @@ model Orden {
   created_at      DateTime    @default(now())
   updated_at      DateTime    @updatedAt
 
-  comprador Usuario   @relation("ComprasPor", fields: [id_comprador], references: [id_usuario])
+  comprador Usuario     @relation("ComprasPor", fields: [id_comprador], references: [id_usuario])
   items     ItemOrden[]
   resenas   Resena[]
   mensajes  Mensaje[]

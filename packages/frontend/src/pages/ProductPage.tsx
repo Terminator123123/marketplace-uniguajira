@@ -1,14 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { ShoppingCart, Star, Store, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ShoppingCart, Star, Store, ChevronLeft, ChevronRight, Check } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import axios from 'axios'
 import type { Producto } from '@marketplace/shared'
+import { useCartStore } from '../store/cart.ts'
 
 export default function ProductPage() {
   const { id } = useParams<{ id: string }>()
   const [producto, setProducto] = useState<Producto | null>(null)
   const [imgIdx, setImgIdx] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [agregado, setAgregado] = useState(false)
+  const agregar = useCartStore(s => s.agregar)
 
   useEffect(() => {
     axios.get(`/api/productos/${id}`)
@@ -16,10 +20,27 @@ export default function ProductPage() {
       .finally(() => setLoading(false))
   }, [id])
 
+  function handleAgregar() {
+    if (!producto) return
+    agregar({
+      id_producto: producto.id_producto,
+      id_tienda: producto.id_tienda,
+      nombre: producto.nombre,
+      precio: producto.precio,
+      tipo: producto.tipo,
+      stock: producto.stock,
+      imagenes: producto.imagenes,
+      tienda_nombre: producto.tienda?.nombre_tienda,
+    })
+    setAgregado(true)
+    setTimeout(() => setAgregado(false), 2000)
+  }
+
   if (loading) return <div className="max-w-5xl mx-auto px-4 py-8 animate-pulse"><div className="h-64 bg-gray-100 rounded-xl" /></div>
   if (!producto) return <div className="text-center py-20 text-gray-500">Producto no encontrado</div>
 
   const imagenes = producto.imagenes ?? []
+  const sinStock = producto.tipo === 'fisico' && producto.stock !== undefined && producto.stock <= 0
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
@@ -53,13 +74,19 @@ export default function ProductPage() {
           <span className="text-xs text-green-700 font-medium bg-green-50 px-2 py-0.5 rounded-full">{producto.categoria}</span>
           <h1 className="text-2xl font-bold text-gray-800 mt-2 mb-1">{producto.nombre}</h1>
 
-          {producto.vendedor && (
+          {producto.tienda && (
             <div className="flex items-center gap-2 text-gray-500 text-sm mb-3">
-              <Star size={14} className="text-yellow-500" fill="currentColor" />
-              <span>{Number(producto.vendedor.rating_promedio).toFixed(1)}</span>
-              <span>·</span>
               <Store size={14} />
-              <span>{producto.tienda?.nombre_tienda}</span>
+              <Link to={`/tienda/${producto.tienda.id_tienda}`} className="hover:text-green-700 hover:underline">
+                {producto.tienda.nombre_tienda}
+              </Link>
+              {producto.vendedor && (
+                <>
+                  <span>·</span>
+                  <Star size={14} className="text-yellow-500" fill="currentColor" />
+                  <span>{Number(producto.vendedor.rating_promedio).toFixed(1)}</span>
+                </>
+              )}
             </div>
           )}
 
@@ -73,9 +100,18 @@ export default function ProductPage() {
             </p>
           )}
 
-          <button className="btn-primary w-full flex items-center justify-center gap-2">
-            <ShoppingCart size={18} />
-            Agregar al carrito
+          <button
+            onClick={handleAgregar}
+            disabled={sinStock}
+            className={`w-full flex items-center justify-center gap-2 font-medium px-4 py-3 rounded-lg transition-all ${
+              agregado
+                ? 'bg-green-500 text-white'
+                : sinStock
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : 'btn-primary'
+            }`}
+          >
+            {agregado ? <><Check size={18} /> Agregado</> : <><ShoppingCart size={18} /> Agregar al carrito</>}
           </button>
         </div>
       </div>
