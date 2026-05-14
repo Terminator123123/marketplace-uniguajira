@@ -34,7 +34,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
   }
 
   for (const item of items) {
-    const prod = productos.find(p => p.id_producto === item.id_producto)!
+    const prod = productos.find((p: typeof productos[0]) => p.id_producto === item.id_producto)!
     if (prod.stock !== null && prod.stock < item.cantidad) {
       res.status(400).json({ error: `Stock insuficiente para: ${prod.nombre}` })
       return
@@ -42,7 +42,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
   }
 
   const itemsConPrecio = items.map(item => {
-    const prod = productos.find(p => p.id_producto === item.id_producto)!
+    const prod = productos.find((p: typeof productos[0]) => p.id_producto === item.id_producto)!
     const precio_unitario = Number(prod.precio)
     return { id_producto: item.id_producto, cantidad: item.cantidad, precio_unitario, subtotal: precio_unitario * item.cantidad }
   })
