@@ -4,14 +4,14 @@ import {
   Loader2, X, Upload, Trash2, Send, CheckCircle, Clock, ExternalLink,
   LayoutDashboard, Settings, Shield, Eye, EyeOff, ChevronRight,
   ChevronDown, ChevronUp, GripVertical, MoreVertical, Boxes,
-  Search, AlertCircle, MapPin,
+  Search, AlertCircle, MapPin, ClipboardList, User, Truck, Ban,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
 import api from '../lib/api.ts'
 import { getSocket } from '../lib/socket.ts'
 import { useAuthStore } from '../store/auth.ts'
-import type { Orden, Producto } from '@marketplace/shared'
+import type { Orden, OrdenEstado, Producto } from '@marketplace/shared'
 
 interface Tienda {
   id_tienda: string
@@ -29,7 +29,7 @@ interface Solicitud {
   created_at: string
 }
 
-type Tab = 'resumen' | 'menu' | 'inventario' | 'tienda' | 'admin'
+type Tab = 'resumen' | 'pedidos' | 'menu' | 'inventario' | 'tienda' | 'admin'
 
 export default function DashboardPage() {
   const { usuario, token } = useAuthStore()
@@ -136,13 +136,24 @@ export default function DashboardPage() {
         <h1 className="text-2xl font-bold text-gray-800 mb-1">Dashboard</h1>
         <p className="text-gray-500 mb-6">Bienvenido, {usuario?.nombre}</p>
         {esComprador && <BannerSolicitudRol token={token!} solicitud={solicitud} onSolicitud={setSolicitud} />}
+        {ordenes.length > 0 && (
+          <div className="mb-5">
+            <Link to="/mis-pedidos"
+              className="inline-flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+              <ClipboardList size={16} className="text-green-700" />
+              Ver mis pedidos ({ordenes.length})
+              <ChevronRight size={14} className="ml-auto text-gray-400" />
+            </Link>
+          </div>
+        )}
         <TabResumen ordenes={ordenes} totalVentas={0} pendientes={pendientes} esVendedor={false} />
       </div>
     )
   }
 
-  const NAV: { key: Tab; label: string; icon: React.ElementType }[] = [
+  const NAV: { key: Tab; label: string; icon: React.ElementType; badge?: number }[] = [
     { key: 'resumen', label: 'Resumen', icon: LayoutDashboard },
+    { key: 'pedidos', label: 'Pedidos', icon: ClipboardList, badge: ventas.filter(o => o.estado === 'pendiente' || o.estado === 'pagada').length || undefined },
     { key: 'menu', label: 'Menú', icon: Package },
     { key: 'inventario', label: 'Inventario', icon: Boxes },
     { key: 'tienda', label: 'Mi tienda', icon: Store },
@@ -180,7 +191,7 @@ export default function DashboardPage() {
         {/* Sidebar */}
         <aside className="w-52 flex-shrink-0 hidden md:block">
           <nav className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            {NAV.map(({ key, label, icon: Icon }) => (
+            {NAV.map(({ key, label, icon: Icon, badge }) => (
               <button key={key} onClick={() => setTab(key)}
                 className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors text-left border-l-2 ${
                   tab === key
@@ -189,7 +200,11 @@ export default function DashboardPage() {
                 }`}>
                 <Icon size={16} />
                 {label}
-                {tab === key && <ChevronRight size={14} className="ml-auto opacity-50" />}
+                {badge ? (
+                  <span className="ml-auto bg-orange-500 text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                    {badge}
+                  </span>
+                ) : (tab === key && <ChevronRight size={14} className="ml-auto opacity-50" />)}
               </button>
             ))}
           </nav>
@@ -220,18 +235,29 @@ export default function DashboardPage() {
         <main className="flex-1 min-w-0">
           {/* Mobile nav */}
           <div className="flex gap-1 mb-5 bg-white border border-gray-200 p-1 rounded-xl md:hidden overflow-x-auto scrollbar-hide">
-            {NAV.map(({ key, label, icon: Icon }) => (
+            {NAV.map(({ key, label, icon: Icon, badge }) => (
               <button key={key} onClick={() => setTab(key)}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
+                className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
                   tab === key ? 'bg-green-700 text-white' : 'text-gray-600 hover:bg-gray-50'
                 }`}>
                 <Icon size={13} /> {label}
+                {badge ? (
+                  <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[10px] font-bold rounded-full min-w-[15px] h-[15px] flex items-center justify-center px-0.5">
+                    {badge}
+                  </span>
+                ) : null}
               </button>
             ))}
           </div>
 
           {tab === 'resumen' && (
             <TabResumen ordenes={ventas} totalVentas={totalVentas} pendientes={pendientes} esVendedor />
+          )}
+
+          {tab === 'pedidos' && (
+            <TabPedidos ventas={ventas} onEstadoChange={(id, estado) => {
+              setVentas(prev => prev.map(o => o.id_orden === id ? { ...o, estado } : o))
+            }} />
           )}
 
           {tab === 'menu' && (
@@ -1161,6 +1187,148 @@ function FormTienda({ token, tienda, onSaved }: {
           </button>
         </form>
       </div>
+    </div>
+  )
+}
+
+// ── Tab Pedidos (vendedor) ────────────────────────────────────────────────────
+
+const ESTADO_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
+  pendiente:  { label: 'Pendiente',   color: 'text-yellow-700', bg: 'bg-yellow-50',  dot: 'bg-yellow-400' },
+  pagada:     { label: 'Pagada',      color: 'text-blue-700',   bg: 'bg-blue-50',    dot: 'bg-blue-500'   },
+  en_entrega: { label: 'En entrega',  color: 'text-indigo-700', bg: 'bg-indigo-50',  dot: 'bg-indigo-500' },
+  completada: { label: 'Completada',  color: 'text-green-700',  bg: 'bg-green-50',   dot: 'bg-green-500'  },
+  cancelada:  { label: 'Cancelada',   color: 'text-red-600',    bg: 'bg-red-50',     dot: 'bg-red-400'    },
+}
+
+const TRANSICIONES_VENDEDOR: Record<string, OrdenEstado[]> = {
+  pagada:     ['en_entrega'],
+  en_entrega: ['completada'],
+}
+
+function tiempoRelativo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins  = Math.floor(diff / 60_000)
+  const horas = Math.floor(mins / 60)
+  const dias  = Math.floor(horas / 24)
+  if (dias  > 0) return `hace ${dias}d`
+  if (horas > 0) return `hace ${horas}h`
+  if (mins  > 0) return `hace ${mins}min`
+  return 'ahora'
+}
+
+function TabPedidos({ ventas, onEstadoChange }: {
+  ventas: Orden[]
+  onEstadoChange: (id: string, estado: OrdenEstado) => void
+}) {
+  const [filtro, setFiltro] = useState<OrdenEstado | 'todos'>('todos')
+  const [cambiando, setCambiando] = useState<string | null>(null)
+
+  const FILTROS: { key: OrdenEstado | 'todos'; label: string }[] = [
+    { key: 'todos',      label: `Todos (${ventas.length})` },
+    { key: 'pendiente',  label: `Pendiente (${ventas.filter(o => o.estado === 'pendiente').length})` },
+    { key: 'pagada',     label: `Pagada (${ventas.filter(o => o.estado === 'pagada').length})` },
+    { key: 'en_entrega', label: `En entrega (${ventas.filter(o => o.estado === 'en_entrega').length})` },
+    { key: 'completada', label: `Completada (${ventas.filter(o => o.estado === 'completada').length})` },
+    { key: 'cancelada',  label: `Cancelada (${ventas.filter(o => o.estado === 'cancelada').length})` },
+  ]
+
+  const lista = filtro === 'todos' ? ventas : ventas.filter(o => o.estado === filtro)
+
+  async function avanzarEstado(orden: Orden) {
+    const siguientes = TRANSICIONES_VENDEDOR[orden.estado]
+    if (!siguientes?.length) return
+    const nuevo = siguientes[0]
+    setCambiando(orden.id_orden)
+    try {
+      await api.patch(`/api/ordenes/${orden.id_orden}/estado`, { estado: nuevo })
+      onEstadoChange(orden.id_orden, nuevo)
+    } catch { /* silencioso */ }
+    finally { setCambiando(null) }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Chips de filtro */}
+      <div className="flex gap-2 flex-wrap">
+        {FILTROS.map(f => (
+          <button key={f.key} onClick={() => setFiltro(f.key)}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              filtro === f.key
+                ? 'bg-green-700 text-white'
+                : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+            }`}>
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {lista.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 text-center py-16">
+          <ClipboardList size={40} className="mx-auto text-gray-200 mb-3" />
+          <p className="text-gray-400 text-sm">No hay pedidos en esta categoría</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {lista.map(orden => {
+            const est = ESTADO_CONFIG[orden.estado]
+            const siguientes = TRANSICIONES_VENDEDOR[orden.estado]
+            const items = orden.items ?? []
+            const resumen = items.slice(0, 2).map(i => `${i.cantidad}x ${i.producto?.nombre ?? '…'}`).join(', ')
+            const extra = items.length > 2 ? ` +${items.length - 2} más` : ''
+            return (
+              <div key={orden.id_orden} className="bg-white rounded-xl border border-gray-200 px-4 py-3.5 flex items-start gap-4">
+                {/* Dot estado */}
+                <div className="flex flex-col items-center gap-1 pt-0.5 flex-shrink-0">
+                  <span className={`w-2.5 h-2.5 rounded-full ${est.dot}`} />
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-xs font-mono text-gray-400">#{orden.id_orden.slice(-6).toUpperCase()}</span>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${est.color} ${est.bg}`}>{est.label}</span>
+                    <span className="text-xs text-gray-400 ml-auto flex-shrink-0">{tiempoRelativo(orden.created_at)}</span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <User size={12} className="text-gray-400 flex-shrink-0" />
+                    <span className="text-sm font-medium text-gray-800 truncate">
+                      {orden.comprador?.nombre ?? 'Comprador'}
+                    </span>
+                    <span className="text-xs text-gray-400 flex-shrink-0">·</span>
+                    <span className="text-xs text-gray-500 capitalize flex-shrink-0">{orden.metodo_pago}</span>
+                  </div>
+
+                  <p className="text-xs text-gray-500 truncate">{resumen}{extra}</p>
+                </div>
+
+                {/* Total + acción */}
+                <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                  <span className="text-sm font-bold text-gray-800">
+                    ${Number(orden.total).toLocaleString('es-CO')}
+                  </span>
+                  {siguientes?.length ? (
+                    <button
+                      onClick={() => avanzarEstado(orden)}
+                      disabled={cambiando === orden.id_orden}
+                      className="flex items-center gap-1 bg-green-700 hover:bg-green-800 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-60">
+                      {cambiando === orden.id_orden
+                        ? <Loader2 size={11} className="animate-spin" />
+                        : orden.estado === 'pagada' ? <Truck size={11} /> : <CheckCircle size={11} />}
+                      {orden.estado === 'pagada' ? 'Enviar' : 'Completar'}
+                    </button>
+                  ) : orden.estado === 'completada' ? (
+                    <span className="text-xs text-green-600 flex items-center gap-1"><CheckCircle size={11} /> Listo</span>
+                  ) : orden.estado === 'cancelada' ? (
+                    <span className="text-xs text-red-500 flex items-center gap-1"><Ban size={11} /> Cancelada</span>
+                  ) : null}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

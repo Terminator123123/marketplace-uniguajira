@@ -20,6 +20,7 @@ import VerificarEmailPage from './pages/VerificarEmailPage.tsx'
 import OrdenDetallePage from './pages/OrdenDetallePage.tsx'
 import FavoritosPage from './pages/FavoritosPage.tsx'
 import PerfilPage from './pages/PerfilPage.tsx'
+import MisPedidosPage from './pages/MisPedidosPage.tsx'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore(s => s.token)
@@ -87,6 +88,9 @@ export default function App() {
           } />
           <Route path="perfil" element={
             <ProtectedRoute><PerfilPage /></ProtectedRoute>
+          } />
+          <Route path="mis-pedidos" element={
+            <ProtectedRoute><MisPedidosPage /></ProtectedRoute>
           } />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
