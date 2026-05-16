@@ -1,5 +1,9 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { Package, ShoppingBag, Star, TrendingUp, Plus, Pencil, Store, Loader2, X, Upload, Trash2, Send, CheckCircle, Clock, ExternalLink } from 'lucide-react'
+import {
+  Package, ShoppingBag, Star, TrendingUp, Plus, Pencil, Store,
+  Loader2, X, Upload, Trash2, Send, CheckCircle, Clock, ExternalLink,
+  LayoutDashboard, Settings, Shield, Eye, ChevronRight,
+} from 'lucide-react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
 import api from '../lib/api.ts'
@@ -40,6 +44,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [showFormProducto, setShowFormProducto] = useState(false)
   const [editandoProducto, setEditandoProducto] = useState<Producto | null>(null)
+  const [categoriaActiva, setCategoriaActiva] = useState<string>('Todas')
 
   const fetchOrdenes = useCallback(async () => {
     try {
@@ -56,7 +61,6 @@ export default function DashboardPage() {
     const fetchData = async () => {
       try {
         await fetchOrdenes()
-
         if (esVendedor) {
           const [tiendaRes, prodRes] = await Promise.all([
             api.get('/api/tiendas/mi-tienda'),
@@ -65,7 +69,6 @@ export default function DashboardPage() {
           setTienda(tiendaRes.data.data)
           setProductos(prodRes.data.data)
         }
-
         if (esComprador) {
           const solRes = await api.get('/api/solicitudes/mi-solicitud')
           setSolicitud(solRes.data.data)
@@ -87,147 +90,388 @@ export default function DashboardPage() {
     }
   }, [fetchOrdenes])
 
+  async function handleToggleActivo(p: Producto) {
+    const prev = productos
+    setProductos(ps => ps.map(x => x.id_producto === p.id_producto ? { ...x, activo: !x.activo } : x))
+    try {
+      await api.put(`/api/productos/${p.id_producto}`, { activo: !p.activo })
+    } catch {
+      setProductos(prev)
+    }
+  }
+
   const ordenesResumen = esVendedor ? ventas : ordenes
   const totalVentas = ordenesResumen.filter(o => o.estado === 'completada').reduce((s, o) => s + Number(o.total), 0)
   const pendientes = ordenesResumen.filter(o => o.estado === 'pendiente').length
 
-  const TABS: [Tab, string][] = [
-    ['resumen', 'Resumen'],
-    ...(esVendedor ? [['productos', 'Mis Productos'], ['tienda', 'Mi Tienda']] as [Tab, string][] : []),
-    ...(esAdmin ? [['admin', 'Admin']] as [Tab, string][] : []),
+  if (loading) return (
+    <div className="max-w-6xl mx-auto px-4 py-8">
+      <div className="h-32 bg-gray-100 rounded-xl animate-pulse" />
+    </div>
+  )
+
+  // ── Layout para compradores ──
+  if (!esVendedor) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <h1 className="text-2xl font-bold text-gray-800 mb-1">Dashboard</h1>
+        <p className="text-gray-500 mb-6">Bienvenido, {usuario?.nombre}</p>
+
+        {esComprador && (
+          <BannerSolicitudRol token={token!} solicitud={solicitud} onSolicitud={setSolicitud} />
+        )}
+
+        <TabResumen ordenes={ordenes} totalVentas={0} pendientes={pendientes} esVendedor={false} />
+      </div>
+    )
+  }
+
+  // ── Layout para vendedores (y admin) ──
+  const NAV: { key: Tab; label: string; icon: React.ElementType }[] = [
+    { key: 'resumen', label: 'Resumen', icon: LayoutDashboard },
+    { key: 'productos', label: 'Mis productos', icon: Package },
+    { key: 'tienda', label: 'Mi tienda', icon: Store },
+    ...(esAdmin ? [{ key: 'admin' as Tab, label: 'Admin', icon: Shield }] : []),
   ]
 
-  if (loading) return <div className="max-w-6xl mx-auto px-4 py-8"><div className="h-32 bg-gray-100 rounded-xl animate-pulse" /></div>
+  const categorias = ['Todas', ...Array.from(new Set(productos.map(p => p.categoria)))]
+  const productosFiltrados = categoriaActiva === 'Todas'
+    ? productos
+    : productos.filter(p => p.categoria === categoriaActiva)
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-gray-800 mb-1">Dashboard</h1>
-      <p className="text-gray-500 mb-6">Bienvenido, {usuario?.nombre}</p>
-
-      {/* Banner solicitud de rol para compradores */}
-      {esComprador && (
-        <BannerSolicitudRol token={token!} solicitud={solicitud} onSolicitud={setSolicitud} />
-      )}
-
-      {/* Tabs */}
-      {TABS.length > 1 && (
-        <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-lg w-fit flex-wrap">
-          {TABS.map(([key, label]) => (
-            <button key={key} onClick={() => setTab(key)}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${tab === key ? 'bg-white text-green-700 shadow-sm' : 'text-gray-600 hover:text-gray-800'}`}>
-              {label}
-            </button>
-          ))}
+    <div className="min-h-screen bg-gray-50">
+      {/* ── Top bar ── */}
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
+        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-green-700 flex items-center justify-center flex-shrink-0">
+              <Store size={14} className="text-white" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-gray-800 truncate">{tienda?.nombre_tienda ?? 'Mi tienda'}</p>
+              {tienda && (
+                <span className={`text-xs font-medium ${tienda.estado === 'activa' ? 'text-green-600' : 'text-yellow-600'}`}>
+                  ● {tienda.estado}
+                </span>
+              )}
+            </div>
+          </div>
+          {tienda && (
+            <Link
+              to={`/tienda/${tienda.id_tienda}`}
+              className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-green-700 font-medium transition-colors flex-shrink-0"
+            >
+              <Eye size={14} /> Ver tienda
+            </Link>
+          )}
         </div>
-      )}
+      </div>
 
-      {/* ── Tab Resumen ── */}
-      {tab === 'resumen' && (
-        <>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            {[
-              { icon: TrendingUp, label: 'Ventas totales', value: `$${totalVentas.toLocaleString('es-CO')}`, color: 'text-green-600' },
-              { icon: ShoppingBag, label: 'Órdenes totales', value: ordenes.length, color: 'text-blue-600' },
-              { icon: Package, label: 'Pendientes', value: pendientes, color: 'text-orange-600' },
-              { icon: Star, label: 'Rating', value: Number(usuario?.rating_promedio ?? 0).toFixed(1), color: 'text-yellow-500' },
-            ].map(({ icon: Icon, label, value, color }) => (
-              <div key={label} className="card">
-                <Icon size={24} className={`${color} mb-2`} />
-                <p className="text-gray-500 text-sm">{label}</p>
-                <p className="text-2xl font-bold text-gray-800">{value}</p>
+      <div className="max-w-7xl mx-auto px-4 py-6 flex gap-6 items-start">
+
+        {/* ── Sidebar ── */}
+        <aside className="w-52 flex-shrink-0 hidden md:block">
+          <nav className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            {NAV.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors text-left ${
+                  tab === key
+                    ? 'bg-green-50 text-green-700 border-l-2 border-green-700'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800 border-l-2 border-transparent'
+                }`}
+              >
+                <Icon size={16} />
+                {label}
+                {tab === key && <ChevronRight size={14} className="ml-auto opacity-50" />}
+              </button>
+            ))}
+          </nav>
+
+          {/* Stats rápidas */}
+          <div className="mt-4 bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+            <div>
+              <p className="text-xs text-gray-400">Ventas totales</p>
+              <p className="text-lg font-bold text-gray-800">${totalVentas.toLocaleString('es-CO')}</p>
+            </div>
+            <div className="flex justify-between text-xs">
+              <div>
+                <p className="text-gray-400">Pendientes</p>
+                <p className="font-semibold text-orange-600">{pendientes}</p>
               </div>
+              <div>
+                <p className="text-gray-400">Productos</p>
+                <p className="font-semibold text-gray-700">{productos.length}</p>
+              </div>
+              <div>
+                <p className="text-gray-400">Rating</p>
+                <p className="font-semibold text-yellow-600">{Number(usuario?.rating_promedio ?? 0).toFixed(1)}</p>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        {/* ── Contenido principal ── */}
+        <main className="flex-1 min-w-0">
+
+          {/* Nav mobile */}
+          <div className="flex gap-1 mb-5 bg-white border border-gray-200 p-1 rounded-xl md:hidden overflow-x-auto scrollbar-hide">
+            {NAV.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
+                  tab === key ? 'bg-green-700 text-white' : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <Icon size={13} /> {label}
+              </button>
             ))}
           </div>
-          <div className="card">
-            <h2 className="font-semibold text-gray-800 mb-4">{esVendedor ? 'Ventas recientes' : 'Órdenes recientes'}</h2>
-            {ordenesResumen.length === 0 ? <p className="text-gray-400 text-center py-8">Sin órdenes aún</p> : (
-              <div className="space-y-3">
-                {ordenesResumen.slice(0, 10).map(o => (
-                  <Link key={o.id_orden} to={`/mis-ordenes/${o.id_orden}`}
-                    className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0 hover:bg-gray-50 rounded-lg px-2 -mx-2 transition-colors group">
-                    <div>
-                      <p className="text-sm font-medium text-gray-700 flex items-center gap-1">
-                        #{o.id_orden.slice(0, 8).toUpperCase()}
-                        <ExternalLink size={12} className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </p>
-                      <p className="text-xs text-gray-400">{new Date(o.created_at).toLocaleDateString('es-CO')}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-gray-800">${Number(o.total).toLocaleString('es-CO')}</p>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                        o.estado === 'completada' ? 'bg-green-100 text-green-700' :
-                        o.estado === 'pendiente' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'
-                      }`}>{o.estado}</span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-        </>
-      )}
 
-      {/* ── Tab Productos ── */}
-      {tab === 'productos' && (
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-800">Mis productos ({productos.length})</h2>
-            <button onClick={() => { setEditandoProducto(null); setShowFormProducto(true) }} className="btn-primary flex items-center gap-1 text-sm">
-              <Plus size={16} /> Agregar producto
-            </button>
-          </div>
-          {productos.length === 0 ? (
-            <div className="card text-center py-12">
-              <Package size={40} className="mx-auto text-gray-300 mb-3" />
-              <p className="text-gray-500 mb-4">Aún no tienes productos publicados</p>
-              <button onClick={() => { setEditandoProducto(null); setShowFormProducto(true) }} className="btn-primary">Publicar mi primer producto</button>
-            </div>
-          ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {productos.map(p => (
-                <div key={p.id_producto} className="card flex gap-3">
-                  <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                    {p.imagenes?.[0] ? <img src={p.imagenes[0].url} alt={p.nombre} className="w-full h-full object-cover" />
-                      : <div className="w-full h-full flex items-center justify-center text-2xl">📦</div>}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-800 text-sm line-clamp-1">{p.nombre}</p>
-                    <p className="text-green-700 font-semibold text-sm">${Number(p.precio).toLocaleString('es-CO')}</p>
-                    <p className="text-xs text-gray-400">{p.categoria} · {p.tipo === 'fisico' ? `Stock: ${p.stock ?? '—'}` : 'Servicio'}</p>
-                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${p.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                      {p.activo ? 'Activo' : 'Inactivo'}
-                    </span>
-                  </div>
-                  <button onClick={() => { setEditandoProducto(p); setShowFormProducto(true) }}
-                    className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600 flex-shrink-0">
-                    <Pencil size={15} />
+          {/* ── Tab Resumen ── */}
+          {tab === 'resumen' && (
+            <TabResumen ordenes={ventas} totalVentas={totalVentas} pendientes={pendientes} esVendedor />
+          )}
+
+          {/* ── Tab Productos ── */}
+          {tab === 'productos' && (
+            <div className="flex gap-4 items-start">
+
+              {/* Categorías sidebar */}
+              <div className="w-40 flex-shrink-0 bg-white rounded-xl border border-gray-200 overflow-hidden hidden sm:block">
+                <div className="px-3 py-2.5 border-b border-gray-100">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Categorías</p>
+                </div>
+                {categorias.map(cat => {
+                  const count = cat === 'Todas' ? productos.length : productos.filter(p => p.categoria === cat).length
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => setCategoriaActiva(cat)}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 text-sm transition-colors text-left ${
+                        categoriaActiva === cat
+                          ? 'bg-green-50 text-green-700 font-semibold border-l-2 border-green-600'
+                          : 'text-gray-600 hover:bg-gray-50 border-l-2 border-transparent'
+                      }`}
+                    >
+                      <span className="truncate">{cat}</span>
+                      <span className={`text-xs ml-1 flex-shrink-0 ${categoriaActiva === cat ? 'text-green-600' : 'text-gray-400'}`}>{count}</span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Lista de productos */}
+              <div className="flex-1 min-w-0">
+                {/* Toolbar */}
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm text-gray-500">
+                    <span className="font-semibold text-gray-800">{productosFiltrados.length}</span>
+                    {' '}producto{productosFiltrados.length !== 1 ? 's' : ''}
+                    {categoriaActiva !== 'Todas' && <span className="text-gray-400"> en {categoriaActiva}</span>}
+                  </p>
+                  <button
+                    onClick={() => { setEditandoProducto(null); setShowFormProducto(true) }}
+                    className="flex items-center gap-1.5 bg-green-700 hover:bg-green-800 text-white text-sm font-medium px-3 py-2 rounded-lg transition-colors"
+                  >
+                    <Plus size={15} /> Nuevo producto
                   </button>
                 </div>
-              ))}
+
+                {/* Tabla de productos */}
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  {productosFiltrados.length === 0 ? (
+                    <div className="text-center py-16">
+                      <Package size={40} className="mx-auto text-gray-200 mb-3" />
+                      <p className="text-gray-400 text-sm mb-4">
+                        {productos.length === 0 ? 'Aún no tienes productos' : 'Sin productos en esta categoría'}
+                      </p>
+                      {productos.length === 0 && (
+                        <button
+                          onClick={() => { setEditandoProducto(null); setShowFormProducto(true) }}
+                          className="btn-primary text-sm"
+                        >
+                          Publicar mi primer producto
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    productosFiltrados.map((p, i) => (
+                      <FilaProducto
+                        key={p.id_producto}
+                        producto={p}
+                        border={i > 0}
+                        onEditar={() => { setEditandoProducto(p); setShowFormProducto(true) }}
+                        onToggle={() => handleToggleActivo(p)}
+                      />
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           )}
-          {showFormProducto && (
-            <FormProducto token={token!} tiendaId={tienda?.id_tienda ?? ''} producto={editandoProducto}
-              onClose={() => setShowFormProducto(false)}
-              onSaved={(p) => {
-                if (editandoProducto) setProductos(prev => prev.map(x => x.id_producto === p.id_producto ? p : x))
-                else setProductos(prev => [p, ...prev])
-                setShowFormProducto(false)
-              }} />
-          )}
-        </div>
+
+          {/* ── Tab Mi Tienda ── */}
+          {tab === 'tienda' && <FormTienda token={token!} tienda={tienda} onSaved={setTienda} />}
+
+          {/* ── Tab Admin ── */}
+          {tab === 'admin' && <AdminPanel token={token!} />}
+        </main>
+      </div>
+
+      {/* Modal formulario producto */}
+      {showFormProducto && (
+        <FormProducto
+          token={token!}
+          tiendaId={tienda?.id_tienda ?? ''}
+          producto={editandoProducto}
+          onClose={() => setShowFormProducto(false)}
+          onSaved={(p) => {
+            if (editandoProducto) setProductos(prev => prev.map(x => x.id_producto === p.id_producto ? p : x))
+            else setProductos(prev => [p, ...prev])
+            setShowFormProducto(false)
+          }}
+        />
       )}
-
-      {/* ── Tab Tienda ── */}
-      {tab === 'tienda' && <FormTienda token={token!} tienda={tienda} onSaved={setTienda} />}
-
-      {/* ── Tab Admin ── */}
-      {tab === 'admin' && <AdminPanel token={token!} />}
     </div>
   )
 }
 
-// ── Banner Solicitud de Rol ─────────────────────────────────────────────────
+// ── Fila de producto (estilo OlaClick) ────────────────────────────────────────
+
+function FilaProducto({ producto: p, border, onEditar, onToggle }: {
+  producto: Producto
+  border: boolean
+  onEditar: () => void
+  onToggle: () => void
+}) {
+  return (
+    <div className={`flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors ${border ? 'border-t border-gray-100' : ''}`}>
+      {/* Imagen */}
+      <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+        {p.imagenes?.[0]
+          ? <img src={p.imagenes[0].url} alt={p.nombre} className="w-full h-full object-cover" />
+          : <div className="w-full h-full flex items-center justify-center text-xl">📦</div>
+        }
+      </div>
+
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-gray-800 truncate">{p.nombre}</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{p.categoria}</span>
+          {p.tipo === 'fisico' && p.stock != null && (
+            <span className={`text-xs px-1.5 py-0.5 rounded ${(p.stock ?? 1) <= 0 ? 'bg-red-50 text-red-500' : 'bg-gray-50 text-gray-500'}`}>
+              Stock: {p.stock}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Precio */}
+      <p className="text-sm font-semibold text-gray-800 flex-shrink-0 hidden sm:block">
+        ${Number(p.precio).toLocaleString('es-CO')}
+      </p>
+
+      {/* Toggle activo */}
+      <button
+        onClick={e => { e.stopPropagation(); onToggle() }}
+        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+          p.activo ? 'bg-green-600' : 'bg-gray-200'
+        }`}
+        role="switch"
+        aria-checked={p.activo}
+        title={p.activo ? 'Desactivar' : 'Activar'}
+      >
+        <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${
+          p.activo ? 'translate-x-4' : 'translate-x-0'
+        }`} />
+      </button>
+
+      {/* Editar */}
+      <button
+        onClick={onEditar}
+        className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+        title="Editar"
+      >
+        <Pencil size={14} />
+      </button>
+    </div>
+  )
+}
+
+// ── Tab Resumen ───────────────────────────────────────────────────────────────
+
+function TabResumen({ ordenes, totalVentas, pendientes, esVendedor }: {
+  ordenes: Orden[]
+  totalVentas: number
+  pendientes: number
+  esVendedor: boolean
+}) {
+  const { usuario } = useAuthStore()
+  return (
+    <>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {[
+          { icon: TrendingUp, label: esVendedor ? 'Ventas totales' : 'Gastado', value: `$${totalVentas.toLocaleString('es-CO')}`, color: 'text-green-600', bg: 'bg-green-50' },
+          { icon: ShoppingBag, label: esVendedor ? 'Total órdenes' : 'Mis órdenes', value: ordenes.length, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { icon: Clock, label: 'Pendientes', value: pendientes, color: 'text-orange-500', bg: 'bg-orange-50' },
+          { icon: Star, label: 'Rating', value: Number(usuario?.rating_promedio ?? 0).toFixed(1), color: 'text-yellow-500', bg: 'bg-yellow-50' },
+        ].map(({ icon: Icon, label, value, color, bg }) => (
+          <div key={label} className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center mb-3`}>
+              <Icon size={16} className={color} />
+            </div>
+            <p className="text-xs text-gray-400 mb-0.5">{label}</p>
+            <p className="text-xl font-bold text-gray-800">{value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200">
+        <div className="px-4 py-3 border-b border-gray-100">
+          <h2 className="text-sm font-semibold text-gray-800">
+            {esVendedor ? 'Ventas recientes' : 'Órdenes recientes'}
+          </h2>
+        </div>
+        {ordenes.length === 0 ? (
+          <p className="text-gray-400 text-center py-10 text-sm">Sin órdenes aún</p>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {ordenes.slice(0, 10).map(o => (
+              <Link
+                key={o.id_orden}
+                to={`/mis-ordenes/${o.id_orden}`}
+                className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors group"
+              >
+                <div>
+                  <p className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                    #{o.id_orden.slice(0, 8).toUpperCase()}
+                    <ExternalLink size={11} className="text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </p>
+                  <p className="text-xs text-gray-400">{new Date(o.created_at).toLocaleDateString('es-CO')}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-gray-800">${Number(o.total).toLocaleString('es-CO')}</p>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    o.estado === 'completada' ? 'bg-green-100 text-green-700' :
+                    o.estado === 'pendiente' ? 'bg-yellow-100 text-yellow-700' :
+                    'bg-gray-100 text-gray-500'
+                  }`}>{o.estado}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+// ── Banner Solicitud de Rol ───────────────────────────────────────────────────
 
 function BannerSolicitudRol({ solicitud, onSolicitud }: {
   token?: string
@@ -242,39 +486,32 @@ function BannerSolicitudRol({ solicitud, onSolicitud }: {
   if (solicitud?.estado === 'aprobada') return null
 
   async function enviar() {
-    setLoading(true)
-    setError('')
+    setLoading(true); setError('')
     try {
       const res = await api.post('/api/solicitudes', { rol_solicitado: 'vendedor', motivacion })
-      onSolicitud(res.data.data)
-      setShow(false)
+      onSolicitud(res.data.data); setShow(false)
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error
-      setError(msg ?? 'Error al enviar')
+      setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Error al enviar')
     } finally { setLoading(false) }
   }
 
-  if (solicitud?.estado === 'pendiente') {
-    return (
-      <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 flex items-center gap-3">
-        <Clock size={18} className="text-yellow-600 flex-shrink-0" />
-        <div>
-          <p className="text-sm font-medium text-yellow-800">Solicitud de vendedor en revisión</p>
-          <p className="text-xs text-yellow-600">Te avisaremos cuando el equipo la apruebe.</p>
-        </div>
+  if (solicitud?.estado === 'pendiente') return (
+    <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 flex items-center gap-3">
+      <Clock size={18} className="text-yellow-600 flex-shrink-0" />
+      <div>
+        <p className="text-sm font-medium text-yellow-800">Solicitud de vendedor en revisión</p>
+        <p className="text-xs text-yellow-600">Te avisaremos cuando el equipo la apruebe.</p>
       </div>
-    )
-  }
+    </div>
+  )
 
-  if (solicitud?.estado === 'rechazada') {
-    return (
-      <div className="mb-6 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-        <p className="text-sm font-medium text-red-800">Tu solicitud fue rechazada.</p>
-        <p className="text-xs text-red-600">Puedes volver a intentarlo con más información.</p>
-        <button onClick={() => setShow(true)} className="mt-2 text-xs text-red-700 underline">Enviar nueva solicitud</button>
-      </div>
-    )
-  }
+  if (solicitud?.estado === 'rechazada') return (
+    <div className="mb-6 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+      <p className="text-sm font-medium text-red-800">Tu solicitud fue rechazada.</p>
+      <p className="text-xs text-red-600">Puedes volver a intentarlo con más información.</p>
+      <button onClick={() => setShow(true)} className="mt-2 text-xs text-red-700 underline">Enviar nueva solicitud</button>
+    </div>
+  )
 
   return (
     <div className="mb-6 bg-green-50 border border-green-200 rounded-xl px-4 py-4">
@@ -302,7 +539,7 @@ function BannerSolicitudRol({ solicitud, onSolicitud }: {
           <div className="flex gap-2">
             <button onClick={() => setShow(false)} className="flex-1 border border-gray-300 text-gray-700 text-sm font-medium px-3 py-2 rounded-lg hover:bg-gray-50">Cancelar</button>
             <button onClick={enviar} disabled={loading} className="flex-1 btn-primary text-sm flex items-center justify-center gap-1">
-              {loading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Enviar solicitud
+              {loading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Enviar
             </button>
           </div>
         </div>
@@ -311,7 +548,7 @@ function BannerSolicitudRol({ solicitud, onSolicitud }: {
   )
 }
 
-// ── Formulario de Producto ──────────────────────────────────────────────────
+// ── Formulario de Producto ────────────────────────────────────────────────────
 
 const CATEGORIAS = ['artesanías', 'papelería', 'tecnología', 'alimentos', 'tutorías', 'soporte técnico', 'diseño gráfico']
 
@@ -322,7 +559,7 @@ function FormProducto({ token, producto, onClose, onSaved }: {
   onClose: () => void
   onSaved: (p: Producto) => void
 }) {
-  const headers = { Authorization: `Bearer ${token}` }  // solo para multipart/form-data
+  const headers = { Authorization: `Bearer ${token}` }
   const [form, setForm] = useState({
     nombre: producto?.nombre ?? '',
     descripcion: producto?.descripcion ?? '',
@@ -341,8 +578,7 @@ function FormProducto({ token, producto, onClose, onSaved }: {
   const field = (key: keyof typeof form, value: string) => setForm(f => ({ ...f, [key]: value }))
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true); setError('')
+    e.preventDefault(); setLoading(true); setError('')
     try {
       const body = {
         nombre: form.nombre,
@@ -434,16 +670,15 @@ function FormProducto({ token, producto, onClose, onSaved }: {
           <div className="flex gap-3">
             <button type="button" onClick={onClose} className="flex-1 border border-gray-300 text-gray-700 font-medium px-4 py-2 rounded-lg hover:bg-gray-50">Cancelar</button>
             <button type="submit" disabled={loading} className="flex-1 btn-primary flex items-center justify-center gap-2">
-              {loading ? <><Loader2 size={16} className="animate-spin" /> Guardando...</> : (savedId ? 'Guardar cambios' : 'Publicar producto')}
+              {loading ? <><Loader2 size={16} className="animate-spin" /> Guardando...</> : (savedId ? 'Guardar cambios' : 'Publicar')}
             </button>
           </div>
         </form>
 
-        {/* Imágenes — solo después de guardar el producto */}
         {savedId && (
           <div className="px-6 pb-6 border-t border-gray-100 pt-4">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-medium text-gray-700">Imágenes del producto</p>
+              <p className="text-sm font-medium text-gray-700">Imágenes</p>
               <button onClick={() => fileRef.current?.click()} disabled={uploading}
                 className="flex items-center gap-1 text-sm text-green-700 hover:text-green-800 font-medium">
                 {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
@@ -455,7 +690,7 @@ function FormProducto({ token, producto, onClose, onSaved }: {
               <div onClick={() => fileRef.current?.click()}
                 className="border-2 border-dashed border-gray-200 rounded-lg py-8 text-center cursor-pointer hover:border-green-400 transition-colors">
                 <Upload size={24} className="mx-auto text-gray-300 mb-2" />
-                <p className="text-sm text-gray-400">Clic para subir foto del producto</p>
+                <p className="text-sm text-gray-400">Clic para subir foto</p>
               </div>
             ) : (
               <div className="flex gap-2 flex-wrap">
@@ -482,7 +717,7 @@ function FormProducto({ token, producto, onClose, onSaved }: {
   )
 }
 
-// ── Formulario de Tienda ────────────────────────────────────────────────────
+// ── Formulario de Tienda ──────────────────────────────────────────────────────
 
 function FormTienda({ tienda, onSaved }: { token?: string; tienda: Tienda | null; onSaved: (t: Tienda) => void }) {
   const [form, setForm] = useState({ nombre_tienda: tienda?.nombre_tienda ?? '', descripcion: tienda?.descripcion ?? '' })
@@ -503,9 +738,9 @@ function FormTienda({ tienda, onSaved }: { token?: string; tienda: Tienda | null
   }
 
   return (
-    <div className="card max-w-lg">
+    <div className="bg-white rounded-xl border border-gray-200 p-6 max-w-lg">
       <div className="flex items-center gap-2 mb-6">
-        <Store size={20} className="text-green-700" />
+        <Settings size={18} className="text-green-700" />
         <h2 className="font-semibold text-gray-800">{tienda ? 'Editar mi tienda' : 'Crear mi tienda'}</h2>
       </div>
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -522,11 +757,11 @@ function FormTienda({ tienda, onSaved }: { token?: string; tienda: Tienda | null
         {tienda && (
           <div className="bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-600">
             Estado: <span className={`font-medium ${tienda.estado === 'activa' ? 'text-green-700' : 'text-yellow-600'}`}>{tienda.estado}</span>
-            {tienda._count && <> · <span className="font-medium">{tienda._count.productos}</span> productos activos</>}
+            {tienda._count && <> · <span className="font-medium">{tienda._count.productos}</span> productos</>}
           </div>
         )}
         {error && <p className="text-red-500 text-sm">{error}</p>}
-        {ok && <p className="text-green-600 text-sm flex items-center gap-1"><CheckCircle size={14} /> Tienda guardada correctamente</p>}
+        {ok && <p className="text-green-600 text-sm flex items-center gap-1"><CheckCircle size={14} /> Guardado</p>}
         <button type="submit" disabled={loading} className="btn-primary w-full flex items-center justify-center gap-2">
           {loading ? <><Loader2 size={16} className="animate-spin" /> Guardando...</> : (tienda ? 'Guardar cambios' : 'Crear tienda')}
         </button>
@@ -535,7 +770,7 @@ function FormTienda({ tienda, onSaved }: { token?: string; tienda: Tienda | null
   )
 }
 
-// ── Panel Admin ─────────────────────────────────────────────────────────────
+// ── Panel Admin ───────────────────────────────────────────────────────────────
 
 interface SolicitudAdmin {
   id_solicitud: string
@@ -565,33 +800,35 @@ function AdminPanel({ token: _token }: { token: string }) {
   }
 
   return (
-    <div>
-      <h2 className="font-semibold text-gray-800 mb-4">Solicitudes de rol pendientes</h2>
-      {loading ? <div className="h-20 bg-gray-100 rounded-xl animate-pulse" /> :
+    <div className="bg-white rounded-xl border border-gray-200">
+      <div className="px-4 py-3 border-b border-gray-100">
+        <h2 className="text-sm font-semibold text-gray-800">Solicitudes de rol pendientes</h2>
+      </div>
+      {loading ? <div className="h-20 m-4 bg-gray-100 rounded-xl animate-pulse" /> :
         solicitudes.length === 0 ? (
-          <div className="card text-center py-10">
+          <div className="text-center py-12">
             <CheckCircle size={36} className="mx-auto text-green-400 mb-2" />
-            <p className="text-gray-500">No hay solicitudes pendientes</p>
+            <p className="text-gray-500 text-sm">No hay solicitudes pendientes</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="divide-y divide-gray-100">
             {solicitudes.map(s => (
-              <div key={s.id_solicitud} className="card">
+              <div key={s.id_solicitud} className="px-4 py-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="font-medium text-gray-800">{s.usuario.nombre}</p>
-                    <p className="text-sm text-gray-500">{s.usuario.email} · {s.usuario.facultad ?? 'Sin facultad'}</p>
-                    <p className="text-xs text-gray-400 mt-1">Solicita ser: <span className="font-medium text-green-700">{s.rol_solicitado}</span></p>
-                    {s.motivacion && <p className="text-sm text-gray-600 mt-2 bg-gray-50 rounded p-2">"{s.motivacion}"</p>}
+                    <p className="font-medium text-gray-800 text-sm">{s.usuario.nombre}</p>
+                    <p className="text-xs text-gray-500">{s.usuario.email} · {s.usuario.facultad ?? 'Sin facultad'}</p>
+                    <p className="text-xs text-gray-400 mt-1">Solicita: <span className="font-medium text-green-700">{s.rol_solicitado}</span></p>
+                    {s.motivacion && <p className="text-xs text-gray-600 mt-2 bg-gray-50 rounded p-2 italic">"{s.motivacion}"</p>}
                   </div>
                   <div className="flex gap-2 flex-shrink-0">
                     <button onClick={() => decidir(s.id_solicitud, 'rechazada')} disabled={procesando === s.id_solicitud}
-                      className="px-3 py-1.5 border border-red-300 text-red-600 text-sm rounded-lg hover:bg-red-50 transition-colors">
+                      className="px-3 py-1.5 border border-red-200 text-red-600 text-xs rounded-lg hover:bg-red-50 transition-colors">
                       Rechazar
                     </button>
                     <button onClick={() => decidir(s.id_solicitud, 'aprobada')} disabled={procesando === s.id_solicitud}
-                      className="px-3 py-1.5 bg-green-700 text-white text-sm rounded-lg hover:bg-green-800 transition-colors flex items-center gap-1">
-                      {procesando === s.id_solicitud ? <Loader2 size={14} className="animate-spin" /> : null}
+                      className="px-3 py-1.5 bg-green-700 text-white text-xs rounded-lg hover:bg-green-800 transition-colors flex items-center gap-1">
+                      {procesando === s.id_solicitud ? <Loader2 size={12} className="animate-spin" /> : null}
                       Aprobar
                     </button>
                   </div>

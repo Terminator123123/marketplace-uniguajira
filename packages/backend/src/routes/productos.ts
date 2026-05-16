@@ -14,6 +14,7 @@ const ProductoSchema = z.object({
   tipo: z.enum(['fisico', 'servicio']),
   categoria: z.string().min(2).max(50),
   stock: z.number().int().nonnegative().optional(),
+  activo: z.boolean().optional(),
 })
 
 // Listar productos con filtros
