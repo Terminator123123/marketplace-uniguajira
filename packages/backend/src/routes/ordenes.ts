@@ -158,14 +158,30 @@ router.get('/vendedor', requireAuth, requireRole('vendedor', 'admin'), async (re
   res.json({ data: ordenes, total, page: pageNum, totalPages: Math.ceil(total / limitNum) })
 })
 
-// Detalle de orden
+// Detalle de orden (comprador, vendedor de esa orden, o admin)
 router.get('/:id', validateUUID('id'), requireAuth, async (req: AuthRequest, res) => {
   const orden = await prisma.orden.findUnique({
     where: { id_orden: req.params['id'] },
-    include: { items: { include: { producto: true } } },
+    include: {
+      comprador: { select: { id_usuario: true, nombre: true, foto_url: true } },
+      items: {
+        include: {
+          producto: {
+            select: { id_producto: true, nombre: true, precio: true, id_vendedor: true, imagenes: { where: { es_principal: true }, take: 1 } },
+          },
+        },
+      },
+    },
   })
 
-  if (!orden || orden.id_comprador !== req.user!.id) {
+  if (!orden) { res.status(404).json({ error: 'Orden no encontrada' }); return }
+
+  const userId = req.user!.id
+  const esComprador = orden.id_comprador === userId
+  const esVendedor = orden.items.some(i => i.producto.id_vendedor === userId)
+  const esAdmin = req.user!.rol === 'admin'
+
+  if (!esComprador && !esVendedor && !esAdmin) {
     res.status(404).json({ error: 'Orden no encontrada' }); return
   }
 

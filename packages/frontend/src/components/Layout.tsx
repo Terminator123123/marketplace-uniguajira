@@ -1,5 +1,5 @@
 import { Outlet, Link, useNavigate } from 'react-router-dom'
-import { ShoppingBag, LogOut, LayoutDashboard, ShoppingCart } from 'lucide-react'
+import { ShoppingBag, LogOut, LayoutDashboard, ShoppingCart, Heart, User } from 'lucide-react'
 import { useAuthStore } from '../store/auth.ts'
 import { useCartStore } from '../store/cart.ts'
 import CartDrawer from './CartDrawer.tsx'
@@ -47,8 +47,14 @@ export default function Layout() {
                     Dashboard
                   </Link>
                 )}
-                <span className="text-green-200 text-sm hidden sm:block">{usuario.nombre}</span>
-                <button onClick={handleLogout} className="flex items-center gap-1 hover:text-orange-300 transition-colors">
+                <Link to="/favoritos" className="hover:text-orange-300 transition-colors" title="Mis favoritos">
+                  <Heart size={18} />
+                </Link>
+                <Link to="/perfil" className="flex items-center gap-1 hover:text-orange-300 transition-colors text-sm">
+                  <User size={16} />
+                  <span className="hidden sm:block">{usuario.nombre.split(' ')[0]}</span>
+                </Link>
+                <button onClick={handleLogout} className="flex items-center gap-1 hover:text-orange-300 transition-colors" title="Cerrar sesión">
                   <LogOut size={16} />
                 </button>
               </>

@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
-import { Package, ShoppingBag, Star, TrendingUp, Plus, Pencil, Store, Loader2, X, Upload, Trash2, Send, CheckCircle, Clock } from 'lucide-react'
+import { Package, ShoppingBag, Star, TrendingUp, Plus, Pencil, Store, Loader2, X, Upload, Trash2, Send, CheckCircle, Clock, ExternalLink } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import axios from 'axios'
 import { useAuthStore } from '../store/auth.ts'
 import type { Orden, Producto } from '@marketplace/shared'
@@ -120,9 +121,13 @@ export default function DashboardPage() {
             {ordenes.length === 0 ? <p className="text-gray-400 text-center py-8">Sin órdenes aún</p> : (
               <div className="space-y-3">
                 {ordenes.slice(0, 10).map(o => (
-                  <div key={o.id_orden} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                  <Link key={o.id_orden} to={`/mis-ordenes/${o.id_orden}`}
+                    className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0 hover:bg-gray-50 rounded-lg px-2 -mx-2 transition-colors group">
                     <div>
-                      <p className="text-sm font-medium text-gray-700">{o.id_orden.slice(0, 8)}...</p>
+                      <p className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                        #{o.id_orden.slice(0, 8).toUpperCase()}
+                        <ExternalLink size={12} className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </p>
                       <p className="text-xs text-gray-400">{new Date(o.created_at).toLocaleDateString('es-CO')}</p>
                     </div>
                     <div className="text-right">
@@ -132,7 +137,7 @@ export default function DashboardPage() {
                         o.estado === 'pendiente' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'
                       }`}>{o.estado}</span>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}

@@ -17,6 +17,9 @@ import NotFoundPage from './pages/NotFoundPage.tsx'
 import ResetPasswordPage from './pages/ResetPasswordPage.tsx'
 import TiendaPage from './pages/TiendaPage.tsx'
 import VerificarEmailPage from './pages/VerificarEmailPage.tsx'
+import OrdenDetallePage from './pages/OrdenDetallePage.tsx'
+import FavoritosPage from './pages/FavoritosPage.tsx'
+import PerfilPage from './pages/PerfilPage.tsx'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore(s => s.token)
@@ -76,6 +79,15 @@ export default function App() {
           } />
           <Route path="reset-password" element={<ResetPasswordPage />} />
           <Route path="tienda/:id" element={<TiendaPage />} />
+          <Route path="mis-ordenes/:id" element={
+            <ProtectedRoute><OrdenDetallePage /></ProtectedRoute>
+          } />
+          <Route path="favoritos" element={
+            <ProtectedRoute><FavoritosPage /></ProtectedRoute>
+          } />
+          <Route path="perfil" element={
+            <ProtectedRoute><PerfilPage /></ProtectedRoute>
+          } />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
