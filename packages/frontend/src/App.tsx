@@ -1,7 +1,11 @@
+import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/auth.ts'
+import { useToastStore } from './store/toasts.ts'
+import { connectSocket, disconnectSocket } from './lib/socket.ts'
 
 import Layout from './components/Layout.tsx'
+import Toasts from './components/Toasts.tsx'
 import HomePage from './pages/HomePage.tsx'
 import LoginPage from './pages/LoginPage.tsx'
 import RegisterPage from './pages/RegisterPage.tsx'
@@ -12,20 +16,56 @@ import CheckoutPage from './pages/CheckoutPage.tsx'
 import NotFoundPage from './pages/NotFoundPage.tsx'
 import ResetPasswordPage from './pages/ResetPasswordPage.tsx'
 import TiendaPage from './pages/TiendaPage.tsx'
+import VerificarEmailPage from './pages/VerificarEmailPage.tsx'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore(s => s.token)
   return token ? <>{children}</> : <Navigate to="/login" replace />
 }
 
+function SocketProvider() {
+  const token = useAuthStore(s => s.token)
+  const push = useToastStore(s => s.push)
+
+  useEffect(() => {
+    if (!token) { disconnectSocket(); return }
+
+    const socket = connectSocket(token)
+
+    socket.on('nueva_orden', (data: { id_orden: string; total: number }) => {
+      push('success', `Nueva orden recibida — $${data.total.toLocaleString('es-CO')} COP`)
+    })
+
+    socket.on('orden_actualizada', (data: { estado: string }) => {
+      const estados: Record<string, string> = {
+        pagada: 'Tu pago fue confirmado',
+        en_entrega: 'Tu pedido está en camino',
+        completada: 'Tu pedido fue completado',
+        cancelada: 'Tu orden fue cancelada',
+      }
+      push('info', estados[data.estado] ?? `Orden actualizada: ${data.estado}`)
+    })
+
+    return () => {
+      socket.off('nueva_orden')
+      socket.off('orden_actualizada')
+    }
+  }, [token, push])
+
+  return null
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      <SocketProvider />
+      <Toasts />
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<HomePage />} />
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
+          <Route path="verificar-email" element={<VerificarEmailPage />} />
           <Route path="catalogo" element={<CatalogPage />} />
           <Route path="producto/:id" element={<ProductPage />} />
           <Route path="checkout" element={

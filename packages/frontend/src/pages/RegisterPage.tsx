@@ -9,7 +9,12 @@ const DOMINIO = '@uniguajira.edu.co'
 const schema = z.object({
   nombre: z.string().min(2, 'Mínimo 2 caracteres'),
   email: z.string().email().endsWith(DOMINIO, { message: `Usa tu correo ${DOMINIO}` }),
-  password: z.string().min(8, 'Mínimo 8 caracteres'),
+  password: z.string()
+    .min(16, 'Mínimo 16 caracteres')
+    .regex(/[A-Z]/, 'Debe incluir al menos una mayúscula')
+    .regex(/[a-z]/, 'Debe incluir al menos una minúscula')
+    .regex(/[0-9]/, 'Debe incluir al menos un número')
+    .regex(/[^A-Za-z0-9]/, 'Debe incluir al menos un símbolo (!@#$%...)'),
   facultad: z.string().optional(),
 })
 type Form = z.infer<typeof schema>
@@ -26,7 +31,7 @@ export default function RegisterPage() {
   async function onSubmit(data: Form) {
     try {
       await axios.post('/api/auth/register', data)
-      navigate('/login', { state: { message: 'Cuenta creada. Un administrador debe activarla.' } })
+      navigate('/verificar-email', { replace: true })
     } catch (err: unknown) {
       const msg = axios.isAxiosError(err) ? err.response?.data?.error : 'Error al registrarse'
       setError('root', { message: msg })
