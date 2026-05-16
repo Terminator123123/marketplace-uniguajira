@@ -13,6 +13,8 @@ import tiendasRouter from './routes/tiendas.js'
 import solicitudesRouter from './routes/solicitudes.js'
 import uploadsRouter from './routes/uploads.js'
 import mensajesRouter from './routes/mensajes.js'
+import resenasRouter from './routes/resenas.js'
+import webhooksRouter from './routes/webhooks.js'
 import { initSocket } from './socket.js'
 
 const app = express()
@@ -32,6 +34,8 @@ app.use('/api/tiendas', tiendasRouter)
 app.use('/api/solicitudes', solicitudesRouter)
 app.use('/api/uploads', uploadsRouter)
 app.use('/api/mensajes', mensajesRouter)
+app.use('/api/resenas', resenasRouter)
+app.use('/webhooks', webhooksRouter)
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })

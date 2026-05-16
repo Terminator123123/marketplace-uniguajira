@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import { PrismaClient } from '@prisma/client'
-import { requireAuth, type AuthRequest } from '../middleware/auth.js'
+import { requireAuth, requireRole, type AuthRequest } from '../middleware/auth.js'
 
 const router = Router()
 const prisma = new PrismaClient()
@@ -74,6 +74,37 @@ router.get('/mis-ordenes', requireAuth, async (req: AuthRequest, res) => {
   res.json({ data: ordenes })
 })
 
+// Órdenes del vendedor (contienen al menos un producto suyo)
+router.get('/vendedor', requireAuth, requireRole('vendedor', 'admin'), async (req: AuthRequest, res) => {
+  const { estado, page = '1', limit = '20' } = req.query as Record<string, string>
+  const pageNum = Math.max(1, parseInt(page))
+  const limitNum = Math.min(50, parseInt(limit))
+
+  const where: Record<string, unknown> = {
+    items: { some: { producto: { id_vendedor: req.user!.id } } },
+  }
+  if (estado) where['estado'] = estado
+
+  const [ordenes, total] = await Promise.all([
+    prisma.orden.findMany({
+      where,
+      include: {
+        comprador: { select: { nombre: true, email: true, foto_url: true } },
+        items: {
+          where: { producto: { id_vendedor: req.user!.id } },
+          include: { producto: { select: { nombre: true, imagenes: { where: { es_principal: true }, take: 1 } } } },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+      skip: (pageNum - 1) * limitNum,
+      take: limitNum,
+    }),
+    prisma.orden.count({ where }),
+  ])
+
+  res.json({ data: ordenes, total, page: pageNum, totalPages: Math.ceil(total / limitNum) })
+})
+
 // Detalle de orden
 router.get('/:id', requireAuth, async (req: AuthRequest, res) => {
   const orden = await prisma.orden.findUnique({
@@ -86,6 +117,72 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res) => {
   }
 
   res.json({ data: orden })
+})
+
+// Actualizar estado de orden
+// comprador: pendiente → cancelada
+// vendedor:  pagada → en_entrega → completada
+// admin:     cualquier transición
+router.patch('/:id/estado', requireAuth, async (req: AuthRequest, res) => {
+  const { estado } = req.body as { estado: string }
+  const estadosValidos = ['pendiente', 'pagada', 'en_entrega', 'completada', 'cancelada']
+  if (!estadosValidos.includes(estado)) {
+    res.status(400).json({ error: 'Estado inválido' }); return
+  }
+
+  const orden = await prisma.orden.findUnique({
+    where: { id_orden: req.params['id'] },
+    include: { items: { include: { producto: { select: { id_vendedor: true } } } } },
+  })
+  if (!orden) { res.status(404).json({ error: 'Orden no encontrada' }); return }
+
+  const userId = req.user!.id
+  const rol = req.user!.rol
+  const esComprador = orden.id_comprador === userId
+  const esVendedor = orden.items.some(i => i.producto.id_vendedor === userId)
+
+  // Validar transiciones por rol
+  const transicionesPermitidas: Record<string, string[]> = {
+    comprador: ['cancelada'],
+    vendedor: ['en_entrega', 'completada'],
+    admin: estadosValidos,
+  }
+  const estadosOrigenPermitidos: Record<string, string[]> = {
+    en_entrega: ['pagada'],
+    completada: ['en_entrega'],
+    cancelada: ['pendiente'],
+  }
+
+  if (rol !== 'admin') {
+    if (!esComprador && !esVendedor) { res.status(403).json({ error: 'No tienes acceso a esta orden' }); return }
+    const permitidos = rol === 'vendedor' && esVendedor
+      ? transicionesPermitidas['vendedor']
+      : transicionesPermitidas['comprador']
+    if (!permitidos.includes(estado)) {
+      res.status(403).json({ error: `No puedes cambiar a estado '${estado}'` }); return
+    }
+    const origenRequerido = estadosOrigenPermitidos[estado]
+    if (origenRequerido && !origenRequerido.includes(orden.estado)) {
+      res.status(400).json({ error: `La orden debe estar en estado '${origenRequerido.join(' o ')}' para este cambio` }); return
+    }
+  }
+
+  const actualizada = await prisma.orden.update({
+    where: { id_orden: req.params['id'] },
+    data: { estado: estado as 'pendiente' | 'pagada' | 'en_entrega' | 'completada' | 'cancelada' },
+  })
+
+  // Si se cancela, restaurar stock
+  if (estado === 'cancelada') {
+    for (const item of orden.items) {
+      await prisma.producto.updateMany({
+        where: { id_producto: item.id_producto, stock: { not: null } },
+        data: { stock: { increment: item.cantidad } },
+      })
+    }
+  }
+
+  res.json({ data: actualizada })
 })
 
 export default router
