@@ -1,7 +1,9 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { Package, ShoppingBag, Star, TrendingUp, Plus, Pencil, Store, Loader2, X, Upload, Trash2, Send, CheckCircle, Clock, ExternalLink } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
+import api from '../lib/api.ts'
+import { getSocket } from '../lib/socket.ts'
 import { useAuthStore } from '../store/auth.ts'
 import type { Orden, Producto } from '@marketplace/shared'
 
@@ -25,13 +27,13 @@ type Tab = 'resumen' | 'productos' | 'tienda' | 'admin'
 
 export default function DashboardPage() {
   const { usuario, token } = useAuthStore()
-  const headers = { Authorization: `Bearer ${token}` }
   const esVendedor = usuario?.rol === 'vendedor' || usuario?.rol === 'admin'
   const esAdmin = usuario?.rol === 'admin'
   const esComprador = usuario?.rol === 'comprador'
 
   const [tab, setTab] = useState<Tab>('resumen')
   const [ordenes, setOrdenes] = useState<Orden[]>([])
+  const [ventas, setVentas] = useState<Orden[]>([])
   const [productos, setProductos] = useState<Producto[]>([])
   const [tienda, setTienda] = useState<Tienda | null>(null)
   const [solicitud, setSolicitud] = useState<Solicitud | null>(null)
@@ -39,25 +41,33 @@ export default function DashboardPage() {
   const [showFormProducto, setShowFormProducto] = useState(false)
   const [editandoProducto, setEditandoProducto] = useState<Producto | null>(null)
 
+  const fetchOrdenes = useCallback(async () => {
+    try {
+      const [comprasRes, ventasRes] = await Promise.all([
+        api.get('/api/ordenes/mis-ordenes'),
+        esVendedor ? api.get('/api/ordenes/vendedor') : Promise.resolve(null),
+      ])
+      setOrdenes(comprasRes.data.data)
+      if (ventasRes) setVentas(ventasRes.data.data)
+    } catch { /* silencioso */ }
+  }, [esVendedor])
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [ordRes] = await Promise.all([
-          axios.get('/api/ordenes/mis-ordenes', { headers }),
-        ])
-        setOrdenes(ordRes.data.data)
+        await fetchOrdenes()
 
         if (esVendedor) {
           const [tiendaRes, prodRes] = await Promise.all([
-            axios.get('/api/tiendas/mi-tienda', { headers }),
-            axios.get('/api/tiendas/mi-tienda/productos', { headers }),
+            api.get('/api/tiendas/mi-tienda'),
+            api.get('/api/tiendas/mi-tienda/productos'),
           ])
           setTienda(tiendaRes.data.data)
           setProductos(prodRes.data.data)
         }
 
         if (esComprador) {
-          const solRes = await axios.get('/api/solicitudes/mi-solicitud', { headers })
+          const solRes = await api.get('/api/solicitudes/mi-solicitud')
           setSolicitud(solRes.data.data)
         }
       } catch { /* silencioso */ }
@@ -66,8 +76,20 @@ export default function DashboardPage() {
     fetchData()
   }, [])
 
-  const totalVentas = ordenes.filter(o => o.estado === 'completada').reduce((s, o) => s + Number(o.total), 0)
-  const pendientes = ordenes.filter(o => o.estado === 'pendiente').length
+  useEffect(() => {
+    const socket = getSocket()
+    if (!socket) return
+    socket.on('nueva_orden', fetchOrdenes)
+    socket.on('orden_actualizada', fetchOrdenes)
+    return () => {
+      socket.off('nueva_orden', fetchOrdenes)
+      socket.off('orden_actualizada', fetchOrdenes)
+    }
+  }, [fetchOrdenes])
+
+  const ordenesResumen = esVendedor ? ventas : ordenes
+  const totalVentas = ordenesResumen.filter(o => o.estado === 'completada').reduce((s, o) => s + Number(o.total), 0)
+  const pendientes = ordenesResumen.filter(o => o.estado === 'pendiente').length
 
   const TABS: [Tab, string][] = [
     ['resumen', 'Resumen'],
@@ -117,10 +139,10 @@ export default function DashboardPage() {
             ))}
           </div>
           <div className="card">
-            <h2 className="font-semibold text-gray-800 mb-4">Órdenes recientes</h2>
-            {ordenes.length === 0 ? <p className="text-gray-400 text-center py-8">Sin órdenes aún</p> : (
+            <h2 className="font-semibold text-gray-800 mb-4">{esVendedor ? 'Ventas recientes' : 'Órdenes recientes'}</h2>
+            {ordenesResumen.length === 0 ? <p className="text-gray-400 text-center py-8">Sin órdenes aún</p> : (
               <div className="space-y-3">
-                {ordenes.slice(0, 10).map(o => (
+                {ordenesResumen.slice(0, 10).map(o => (
                   <Link key={o.id_orden} to={`/mis-ordenes/${o.id_orden}`}
                     className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0 hover:bg-gray-50 rounded-lg px-2 -mx-2 transition-colors group">
                     <div>
@@ -207,12 +229,11 @@ export default function DashboardPage() {
 
 // ── Banner Solicitud de Rol ─────────────────────────────────────────────────
 
-function BannerSolicitudRol({ token, solicitud, onSolicitud }: {
-  token: string
+function BannerSolicitudRol({ solicitud, onSolicitud }: {
+  token?: string
   solicitud: Solicitud | null
   onSolicitud: (s: Solicitud) => void
 }) {
-  const headers = { Authorization: `Bearer ${token}` }
   const [motivacion, setMotivacion] = useState('')
   const [loading, setLoading] = useState(false)
   const [show, setShow] = useState(false)
@@ -224,7 +245,7 @@ function BannerSolicitudRol({ token, solicitud, onSolicitud }: {
     setLoading(true)
     setError('')
     try {
-      const res = await axios.post('/api/solicitudes', { rol_solicitado: 'vendedor', motivacion }, { headers })
+      const res = await api.post('/api/solicitudes', { rol_solicitado: 'vendedor', motivacion })
       onSolicitud(res.data.data)
       setShow(false)
     } catch (e: unknown) {
@@ -301,7 +322,7 @@ function FormProducto({ token, producto, onClose, onSaved }: {
   onClose: () => void
   onSaved: (p: Producto) => void
 }) {
-  const headers = { Authorization: `Bearer ${token}` }
+  const headers = { Authorization: `Bearer ${token}` }  // solo para multipart/form-data
   const [form, setForm] = useState({
     nombre: producto?.nombre ?? '',
     descripcion: producto?.descripcion ?? '',
@@ -332,8 +353,8 @@ function FormProducto({ token, producto, onClose, onSaved }: {
         stock: form.tipo === 'fisico' && form.stock ? Number(form.stock) : undefined,
       }
       const res = savedId
-        ? await axios.put(`/api/productos/${savedId}`, body, { headers })
-        : await axios.post('/api/productos', body, { headers })
+        ? await api.put(`/api/productos/${savedId}`, body)
+        : await api.post('/api/productos', body)
       setSavedId(res.data.data.id_producto)
       onSaved({ ...res.data.data, imagenes })
     } catch (e: unknown) {
@@ -358,7 +379,7 @@ function FormProducto({ token, producto, onClose, onSaved }: {
 
   async function handleDeleteImg(id: string) {
     try {
-      await axios.delete(`/api/uploads/imagenes/${id}`, { headers })
+      await api.delete(`/api/uploads/imagenes/${id}`)
       setImagenes(prev => prev.filter(i => i.id_imagen !== id))
     } catch { setError('Error al eliminar imagen') }
   }
@@ -463,8 +484,7 @@ function FormProducto({ token, producto, onClose, onSaved }: {
 
 // ── Formulario de Tienda ────────────────────────────────────────────────────
 
-function FormTienda({ token, tienda, onSaved }: { token: string; tienda: Tienda | null; onSaved: (t: Tienda) => void }) {
-  const headers = { Authorization: `Bearer ${token}` }
+function FormTienda({ tienda, onSaved }: { token?: string; tienda: Tienda | null; onSaved: (t: Tienda) => void }) {
   const [form, setForm] = useState({ nombre_tienda: tienda?.nombre_tienda ?? '', descripcion: tienda?.descripcion ?? '' })
   const [loading, setLoading] = useState(false)
   const [ok, setOk] = useState(false)
@@ -474,8 +494,8 @@ function FormTienda({ token, tienda, onSaved }: { token: string; tienda: Tienda 
     e.preventDefault(); setLoading(true); setError(''); setOk(false)
     try {
       const res = tienda
-        ? await axios.put('/api/tiendas/mi-tienda', form, { headers })
-        : await axios.post('/api/tiendas', form, { headers })
+        ? await api.put('/api/tiendas/mi-tienda', form)
+        : await api.post('/api/tiendas', form)
       onSaved(res.data.data); setOk(true)
     } catch (e: unknown) {
       setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Error al guardar')
@@ -526,20 +546,19 @@ interface SolicitudAdmin {
   usuario: { nombre: string; email: string; facultad?: string }
 }
 
-function AdminPanel({ token }: { token: string }) {
-  const headers = { Authorization: `Bearer ${token}` }
+function AdminPanel({ token: _token }: { token: string }) {
   const [solicitudes, setSolicitudes] = useState<SolicitudAdmin[]>([])
   const [loading, setLoading] = useState(true)
   const [procesando, setProcesando] = useState<string | null>(null)
 
   useEffect(() => {
-    axios.get('/api/solicitudes', { headers }).then(r => setSolicitudes(r.data.data)).finally(() => setLoading(false))
+    api.get('/api/solicitudes').then(r => setSolicitudes(r.data.data)).finally(() => setLoading(false))
   }, [])
 
   async function decidir(id: string, decision: 'aprobada' | 'rechazada') {
     setProcesando(id)
     try {
-      await axios.patch(`/api/solicitudes/${id}`, { decision }, { headers })
+      await api.patch(`/api/solicitudes/${id}`, { decision })
       setSolicitudes(prev => prev.filter(s => s.id_solicitud !== id))
     } catch { /* silencioso */ }
     finally { setProcesando(null) }

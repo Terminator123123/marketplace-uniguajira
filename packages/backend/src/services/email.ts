@@ -14,7 +14,9 @@ function getResend() {
 async function send(payload: { from: string; to: string; subject: string; html: string }) {
   const client = getResend()
   if (!client) return
-  const { data, error } = await client.emails.send(payload)
+  const testRecipient = process.env['RESEND_TEST_RECIPIENT']
+  const to = testRecipient ?? payload.to
+  const { data, error } = await client.emails.send({ ...payload, to })
   if (error) {
     console.error('[Resend error]', error)
   } else {
