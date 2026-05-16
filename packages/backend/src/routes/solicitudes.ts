@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { PrismaClient } from '@prisma/client'
 import { requireAuth, requireRole, type AuthRequest } from '../middleware/auth.js'
+import { validateUUID } from '../middleware/security.js'
 import { enviarSolicitudAprobada } from '../services/email.js'
 
 const router = Router()
@@ -61,7 +62,7 @@ router.get('/', requireAuth, requireRole('admin'), async (_req, res) => {
 })
 
 // Admin: aprobar o rechazar
-router.patch('/:id', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/:id', validateUUID('id'), requireAuth, requireRole('admin'), async (req, res) => {
   const { decision } = req.body as { decision: 'aprobada' | 'rechazada' }
   if (!['aprobada', 'rechazada'].includes(decision)) {
     res.status(400).json({ error: 'Decisión inválida' }); return

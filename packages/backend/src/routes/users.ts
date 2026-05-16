@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { PrismaClient } from '@prisma/client'
 import { requireAuth, requireRole, type AuthRequest } from '../middleware/auth.js'
+import { validateUUID } from '../middleware/security.js'
 
 const router = Router()
 const prisma = new PrismaClient()
@@ -78,7 +79,7 @@ router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
 
 // ─── Admin: ver un usuario ───────────────────────────────────────────────────
 
-router.get('/:id', requireAuth, requireRole('admin'), async (req, res) => {
+router.get('/:id', validateUUID('id'), requireAuth, requireRole('admin'), async (req, res) => {
   const usuario = await prisma.usuario.findUnique({
     where: { id_usuario: req.params['id'] },
     select: {
@@ -95,7 +96,7 @@ router.get('/:id', requireAuth, requireRole('admin'), async (req, res) => {
 
 // ─── Admin: activar usuario ──────────────────────────────────────────────────
 
-router.patch('/:id/activar', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/:id/activar', validateUUID('id'), requireAuth, requireRole('admin'), async (req, res) => {
   const usuario = await prisma.usuario.update({
     where: { id_usuario: req.params['id'] },
     data: { activo: true },
@@ -106,7 +107,7 @@ router.patch('/:id/activar', requireAuth, requireRole('admin'), async (req, res)
 
 // ─── Admin: suspender usuario ─────────────────────────────────────────────────
 
-router.patch('/:id/suspender', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/:id/suspender', validateUUID('id'), requireAuth, requireRole('admin'), async (req, res) => {
   const usuario = await prisma.usuario.update({
     where: { id_usuario: req.params['id'] },
     data: { activo: false },
@@ -117,7 +118,7 @@ router.patch('/:id/suspender', requireAuth, requireRole('admin'), async (req, re
 
 // ─── Admin: cambiar rol ───────────────────────────────────────────────────────
 
-router.patch('/:id/rol', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/:id/rol', validateUUID('id'), requireAuth, requireRole('admin'), async (req, res) => {
   const RolSchema = z.object({ rol: z.enum(['comprador', 'vendedor', 'admin']) })
   const parsed = RolSchema.safeParse(req.body)
   if (!parsed.success) {
@@ -134,7 +135,7 @@ router.patch('/:id/rol', requireAuth, requireRole('admin'), async (req, res) => 
 
 // ─── Admin: eliminar usuario (soft delete) ────────────────────────────────────
 
-router.delete('/:id', requireAuth, requireRole('admin'), async (req, res) => {
+router.delete('/:id', validateUUID('id'), requireAuth, requireRole('admin'), async (req, res) => {
   const { id } = req.params
   // Anonimizar en lugar de borrar para preservar integridad referencial
   await prisma.usuario.update({

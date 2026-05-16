@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { PrismaClient } from '@prisma/client'
 import { requireAuth, requireRole, type AuthRequest } from '../middleware/auth.js'
+import { validateUUID } from '../middleware/security.js'
 import { getIO } from '../socket.js'
 import { enviarNuevaOrden, enviarCambioEstadoOrden } from '../services/email.js'
 
@@ -158,7 +159,7 @@ router.get('/vendedor', requireAuth, requireRole('vendedor', 'admin'), async (re
 })
 
 // Detalle de orden
-router.get('/:id', requireAuth, async (req: AuthRequest, res) => {
+router.get('/:id', validateUUID('id'), requireAuth, async (req: AuthRequest, res) => {
   const orden = await prisma.orden.findUnique({
     where: { id_orden: req.params['id'] },
     include: { items: { include: { producto: true } } },
@@ -172,10 +173,7 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res) => {
 })
 
 // Actualizar estado de orden
-// comprador: pendiente → cancelada
-// vendedor:  pagada → en_entrega → completada
-// admin:     cualquier transición
-router.patch('/:id/estado', requireAuth, async (req: AuthRequest, res) => {
+router.patch('/:id/estado', validateUUID('id'), requireAuth, async (req: AuthRequest, res) => {
   const { estado } = req.body as { estado: string }
   const estadosValidos = ['pendiente', 'pagada', 'en_entrega', 'completada', 'cancelada']
   if (!estadosValidos.includes(estado)) {

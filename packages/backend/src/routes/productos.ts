@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { PrismaClient } from '@prisma/client'
 import { requireAuth, requireRole, type AuthRequest } from '../middleware/auth.js'
+import { validateUUID } from '../middleware/security.js'
 
 const router = Router()
 const prisma = new PrismaClient()
@@ -57,7 +58,7 @@ router.get('/', async (req, res) => {
 })
 
 // Detalle de producto
-router.get('/:id', async (req, res) => {
+router.get('/:id', validateUUID('id'), async (req, res) => {
   const producto = await prisma.producto.findUnique({
     where: { id_producto: req.params['id'], activo: true },
     include: {
@@ -96,7 +97,7 @@ router.post('/', requireAuth, requireRole('vendedor'), async (req: AuthRequest, 
 })
 
 // Editar producto
-router.put('/:id', requireAuth, requireRole('vendedor'), async (req: AuthRequest, res) => {
+router.put('/:id', validateUUID('id'), requireAuth, requireRole('vendedor'), async (req: AuthRequest, res) => {
   const producto = await prisma.producto.findUnique({ where: { id_producto: req.params['id'] } })
   if (!producto || producto.id_vendedor !== req.user!.id) {
     res.status(404).json({ error: 'Producto no encontrado' }); return
@@ -124,7 +125,7 @@ router.get('/categorias/lista', async (_req, res) => {
 })
 
 // Eliminar producto
-router.delete('/:id', requireAuth, requireRole('vendedor', 'admin'), async (req: AuthRequest, res) => {
+router.delete('/:id', validateUUID('id'), requireAuth, requireRole('vendedor', 'admin'), async (req: AuthRequest, res) => {
   const producto = await prisma.producto.findUnique({ where: { id_producto: req.params['id'] } })
   if (!producto) { res.status(404).json({ error: 'Producto no encontrado' }); return }
   if (req.user!.rol === 'vendedor' && producto.id_vendedor !== req.user!.id) {

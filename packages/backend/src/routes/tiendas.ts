@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { PrismaClient } from '@prisma/client'
 import { requireAuth, requireRole, type AuthRequest } from '../middleware/auth.js'
+import { validateUUID } from '../middleware/security.js'
 
 const router = Router()
 const prisma = new PrismaClient()
@@ -87,7 +88,7 @@ router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
 })
 
 // Admin: cambiar estado de una tienda
-router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) => {
+router.patch('/:id/estado', validateUUID('id'), requireAuth, requireRole('admin'), async (req, res) => {
   const { estado } = req.body as { estado: string }
   if (!['pendiente', 'activa', 'suspendida'].includes(estado)) {
     res.status(400).json({ error: 'Estado inválido' }); return
@@ -102,7 +103,7 @@ router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) 
 })
 
 // Tienda pública por id
-router.get('/:id', async (req, res) => {
+router.get('/:id', validateUUID('id'), async (req, res) => {
   const tienda = await prisma.tienda.findUnique({
     where: { id_tienda: req.params['id'] },
     include: {

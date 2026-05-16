@@ -92,10 +92,7 @@ export function requirePermission(permiso: string) {
       return
     }
     if (!canDo(req.user.rol, permiso)) {
-      res.status(403).json({
-        error: 'Permiso denegado',
-        detalle: `Tu rol (${req.user.rol}) no tiene el permiso: ${permiso}`,
-      })
+      res.status(403).json({ error: 'Acceso denegado' })
       return
     }
     next()
