@@ -119,6 +119,8 @@ model Tienda {
   nombre_tienda String       @db.VarChar(100)
   descripcion   String?
   banner_url    String?      @db.VarChar(255)
+  logo_url      String?      @db.VarChar(255)
+  ubicacion     String?      @db.VarChar(300)
   estado        TiendaEstado @default(pendiente)
   created_at    DateTime     @default(now())
 

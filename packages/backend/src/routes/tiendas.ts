@@ -10,6 +10,9 @@ const prisma = new PrismaClient()
 const TiendaSchema = z.object({
   nombre_tienda: z.string().min(2).max(100),
   descripcion: z.string().optional(),
+  ubicacion: z.string().max(300).optional(),
+  banner_url: z.string().url().optional().or(z.literal('')),
+  logo_url: z.string().url().optional().or(z.literal('')),
 })
 
 // Mi tienda (vendedor autenticado)

@@ -59,6 +59,36 @@ router.post('/producto/:id/imagenes', requireAuth, requireRole('vendedor', 'admi
   res.status(201).json({ data: imagen })
 })
 
+// Subir logo de tienda
+router.post('/tienda/logo', requireAuth, requireRole('vendedor', 'admin'), upload.single('imagen'), async (req: AuthRequest, res) => {
+  if (!req.file) { res.status(400).json({ error: 'No se recibió ninguna imagen' }); return }
+
+  const tienda = await prisma.tienda.findUnique({ where: { id_vendedor: req.user!.id } })
+  if (!tienda) { res.status(404).json({ error: 'No tienes tienda' }); return }
+
+  const { url } = await uploadToCloudinary(req.file.buffer, 'marketplace/tiendas/logos')
+  const actualizada = await prisma.tienda.update({
+    where: { id_tienda: tienda.id_tienda },
+    data: { logo_url: url },
+  })
+  res.json({ data: { logo_url: actualizada.logo_url } })
+})
+
+// Subir banner de tienda
+router.post('/tienda/banner', requireAuth, requireRole('vendedor', 'admin'), upload.single('imagen'), async (req: AuthRequest, res) => {
+  if (!req.file) { res.status(400).json({ error: 'No se recibió ninguna imagen' }); return }
+
+  const tienda = await prisma.tienda.findUnique({ where: { id_vendedor: req.user!.id } })
+  if (!tienda) { res.status(404).json({ error: 'No tienes tienda' }); return }
+
+  const { url } = await uploadToCloudinary(req.file.buffer, 'marketplace/tiendas/banners')
+  const actualizada = await prisma.tienda.update({
+    where: { id_tienda: tienda.id_tienda },
+    data: { banner_url: url },
+  })
+  res.json({ data: { banner_url: actualizada.banner_url } })
+})
+
 // Eliminar imagen
 router.delete('/imagenes/:id', requireAuth, requireRole('vendedor', 'admin'), async (req: AuthRequest, res) => {
   const imagen = await prisma.imagenProducto.findUnique({ where: { id_imagen: req.params['id'] }, include: { producto: true } })

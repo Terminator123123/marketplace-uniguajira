@@ -4,7 +4,7 @@ import {
   Loader2, X, Upload, Trash2, Send, CheckCircle, Clock, ExternalLink,
   LayoutDashboard, Settings, Shield, Eye, EyeOff, ChevronRight,
   ChevronDown, ChevronUp, GripVertical, MoreVertical, Boxes,
-  Search, AlertCircle,
+  Search, AlertCircle, MapPin,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
@@ -965,11 +965,32 @@ function BannerSolicitudRol({ solicitud, onSolicitud }: {
 
 // ── Formulario de Tienda ──────────────────────────────────────────────────────
 
-function FormTienda({ tienda, onSaved }: { token?: string; tienda: Tienda | null; onSaved: (t: Tienda) => void }) {
-  const [form, setForm] = useState({ nombre_tienda: tienda?.nombre_tienda ?? '', descripcion: tienda?.descripcion ?? '' })
+interface TiendaExtendida extends Tienda {
+  logo_url?: string | null
+  banner_url?: string | null
+  ubicacion?: string | null
+}
+
+function FormTienda({ token, tienda, onSaved }: {
+  token?: string
+  tienda: TiendaExtendida | null
+  onSaved: (t: TiendaExtendida) => void
+}) {
+  const headers = { Authorization: `Bearer ${token}` }
+  const [form, setForm] = useState({
+    nombre_tienda: tienda?.nombre_tienda ?? '',
+    descripcion: tienda?.descripcion ?? '',
+    ubicacion: tienda?.ubicacion ?? '',
+  })
+  const [logoUrl, setLogoUrl] = useState<string | null>(tienda?.logo_url ?? null)
+  const [bannerUrl, setBannerUrl] = useState<string | null>(tienda?.banner_url ?? null)
   const [loading, setLoading] = useState(false)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [uploadingBanner, setUploadingBanner] = useState(false)
   const [ok, setOk] = useState(false)
   const [error, setError] = useState('')
+  const logoRef = useRef<HTMLInputElement>(null)
+  const bannerRef = useRef<HTMLInputElement>(null)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setLoading(true); setError(''); setOk(false)
@@ -977,41 +998,169 @@ function FormTienda({ tienda, onSaved }: { token?: string; tienda: Tienda | null
       const res = tienda
         ? await api.put('/api/tiendas/mi-tienda', form)
         : await api.post('/api/tiendas', form)
-      onSaved(res.data.data); setOk(true)
+      onSaved({ ...res.data.data, logo_url: logoUrl, banner_url: bannerUrl }); setOk(true)
     } catch (e: unknown) {
       setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Error al guardar')
     } finally { setLoading(false) }
   }
 
+  async function handleLogo(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return
+    setUploadingLogo(true)
+    try {
+      const fd = new FormData(); fd.append('imagen', file)
+      const res = await axios.post('/api/uploads/tienda/logo', fd, {
+        headers: { ...headers, 'Content-Type': 'multipart/form-data' },
+      })
+      setLogoUrl(res.data.data.logo_url)
+    } catch { setError('Error al subir logo') }
+    finally { setUploadingLogo(false); if (logoRef.current) logoRef.current.value = '' }
+  }
+
+  async function handleBanner(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return
+    setUploadingBanner(true)
+    try {
+      const fd = new FormData(); fd.append('imagen', file)
+      const res = await axios.post('/api/uploads/tienda/banner', fd, {
+        headers: { ...headers, 'Content-Type': 'multipart/form-data' },
+      })
+      setBannerUrl(res.data.data.banner_url)
+    } catch { setError('Error al subir portada') }
+    finally { setUploadingBanner(false); if (bannerRef.current) bannerRef.current.value = '' }
+  }
+
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 max-w-lg">
-      <div className="flex items-center gap-2 mb-6">
-        <Settings size={18} className="text-green-700" />
-        <h2 className="font-semibold text-gray-800">{tienda ? 'Editar mi tienda' : 'Crear mi tienda'}</h2>
-      </div>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de la tienda *</label>
-          <input value={form.nombre_tienda} onChange={e => setForm(f => ({ ...f, nombre_tienda: e.target.value }))}
-            className="input" required minLength={2} placeholder="Ej: Artesanías Wayuu de María" />
+    <div className="max-w-2xl space-y-4">
+
+      {/* ── Vista previa / Imágenes ── */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        {/* Banner */}
+        <div className="relative h-36 bg-gray-100 group">
+          {bannerUrl
+            ? <img src={bannerUrl} alt="Portada" className="w-full h-full object-cover" />
+            : <div className="w-full h-full flex flex-col items-center justify-center text-gray-300 bg-gradient-to-br from-gray-100 to-gray-200">
+                <Upload size={24} className="mb-1" />
+                <p className="text-xs">Agregar portada</p>
+              </div>
+          }
+          <button
+            type="button"
+            onClick={() => bannerRef.current?.click()}
+            disabled={uploadingBanner}
+            className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors"
+          >
+            {uploadingBanner
+              ? <Loader2 size={12} className="animate-spin" />
+              : <Upload size={12} />}
+            {uploadingBanner ? 'Subiendo...' : 'Cambiar portada'}
+          </button>
+          <input ref={bannerRef} type="file" accept="image/*" className="hidden" onChange={handleBanner} />
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
-          <textarea value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
-            className="input resize-none" rows={4} placeholder="Cuéntale a tus compradores qué vendes..." />
-        </div>
-        {tienda && (
-          <div className="bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-600">
-            Estado: <span className={`font-medium ${tienda.estado === 'activa' ? 'text-green-700' : 'text-yellow-600'}`}>{tienda.estado}</span>
-            {tienda._count && <> · <span className="font-medium">{tienda._count.productos}</span> productos</>}
+
+        {/* Logo sobre el banner */}
+        <div className="px-4 pb-4 flex items-end gap-4 -mt-8">
+          <div className="relative flex-shrink-0">
+            <div className="w-20 h-20 rounded-xl bg-white border-2 border-white shadow-md overflow-hidden">
+              {logoUrl
+                ? <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
+                : <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                    <Store size={28} className="text-gray-300" />
+                  </div>
+              }
+            </div>
+            <button
+              type="button"
+              onClick={() => logoRef.current?.click()}
+              disabled={uploadingLogo}
+              className="absolute -bottom-1 -right-1 w-7 h-7 bg-green-700 hover:bg-green-800 text-white rounded-full flex items-center justify-center shadow-sm transition-colors"
+            >
+              {uploadingLogo
+                ? <Loader2 size={11} className="animate-spin" />
+                : <Upload size={11} />}
+            </button>
+            <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={handleLogo} />
           </div>
-        )}
-        {error && <p className="text-red-500 text-sm">{error}</p>}
-        {ok && <p className="text-green-600 text-sm flex items-center gap-1"><CheckCircle size={14} /> Guardado</p>}
-        <button type="submit" disabled={loading} className="btn-primary w-full flex items-center justify-center gap-2">
-          {loading ? <><Loader2 size={16} className="animate-spin" /> Guardando...</> : (tienda ? 'Guardar cambios' : 'Crear tienda')}
-        </button>
-      </form>
+          <div className="pb-1">
+            <p className="font-semibold text-gray-800">{form.nombre_tienda || 'Nombre de la tienda'}</p>
+            {tienda && (
+              <span className={`text-xs font-medium ${tienda.estado === 'activa' ? 'text-green-600' : 'text-yellow-600'}`}>
+                ● {tienda.estado}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Datos de la tienda ── */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Settings size={16} className="text-green-700" />
+          <h2 className="font-semibold text-gray-800 text-sm">Información de la tienda</h2>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Nombre de la tienda *</label>
+            <input
+              value={form.nombre_tienda}
+              onChange={e => setForm(f => ({ ...f, nombre_tienda: e.target.value }))}
+              className="input" required minLength={2}
+              placeholder="Ej: Artesanías Wayuu de María"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Descripción</label>
+            <textarea
+              value={form.descripcion}
+              onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
+              className="input resize-none" rows={3}
+              placeholder="Cuéntale a tus compradores qué vendes..."
+            />
+          </div>
+
+          {/* Ubicación */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">
+              Ubicación física
+              <span className="text-gray-400 font-normal ml-1">(para clientes que quieran visitarte)</span>
+            </label>
+            <div className="relative">
+              <MapPin size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                value={form.ubicacion}
+                onChange={e => setForm(f => ({ ...f, ubicacion: e.target.value }))}
+                className="input pl-9 text-sm"
+                placeholder="Ej: Edificio Los Álamos, Of. 302, Riohacha"
+              />
+            </div>
+            {form.ubicacion && (
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(form.ubicacion)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-500 hover:underline mt-1 inline-flex items-center gap-1"
+              >
+                <ExternalLink size={11} /> Ver en Google Maps
+              </a>
+            )}
+          </div>
+
+          {tienda && (
+            <div className="bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-600">
+              Estado: <span className={`font-medium ${tienda.estado === 'activa' ? 'text-green-700' : 'text-yellow-600'}`}>{tienda.estado}</span>
+              {tienda._count && <> · <span className="font-medium">{tienda._count.productos}</span> productos</>}
+            </div>
+          )}
+
+          {error && <p className="text-red-500 text-sm">{error}</p>}
+          {ok && <p className="text-green-600 text-sm flex items-center gap-1"><CheckCircle size={14} /> Cambios guardados</p>}
+
+          <button type="submit" disabled={loading} className="btn-primary w-full flex items-center justify-center gap-2">
+            {loading ? <><Loader2 size={16} className="animate-spin" /> Guardando...</> : (tienda ? 'Guardar cambios' : 'Crear tienda')}
+          </button>
+        </form>
+      </div>
     </div>
   )
 }
