@@ -4,7 +4,7 @@ import {
   Loader2, X, Upload, Trash2, Send, CheckCircle, Clock, ExternalLink,
   LayoutDashboard, Settings, Shield, Eye, EyeOff, ChevronRight,
   ChevronDown, ChevronUp, GripVertical, MoreVertical, Boxes,
-  Search, AlertCircle, MapPin, ClipboardList, User, Truck, Ban,
+  Search, AlertCircle, MapPin, ClipboardList, Truck, Ban,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
@@ -1191,143 +1191,226 @@ function FormTienda({ token, tienda, onSaved }: {
   )
 }
 
-// ── Tab Pedidos (vendedor) ────────────────────────────────────────────────────
+// ── Tab Pedidos (vendedor) — estilo OlaClick ─────────────────────────────────
 
-const ESTADO_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
-  pendiente:  { label: 'Pendiente',   color: 'text-yellow-700', bg: 'bg-yellow-50',  dot: 'bg-yellow-400' },
-  pagada:     { label: 'Pagada',      color: 'text-blue-700',   bg: 'bg-blue-50',    dot: 'bg-blue-500'   },
-  en_entrega: { label: 'En entrega',  color: 'text-indigo-700', bg: 'bg-indigo-50',  dot: 'bg-indigo-500' },
-  completada: { label: 'Completada',  color: 'text-green-700',  bg: 'bg-green-50',   dot: 'bg-green-500'  },
-  cancelada:  { label: 'Cancelada',   color: 'text-red-600',    bg: 'bg-red-50',     dot: 'bg-red-400'    },
+const ESTADO_CHIP: Record<string, { label: string; color: string; bg: string }> = {
+  pendiente:  { label: 'Pendiente',   color: 'text-orange-700', bg: 'bg-orange-100' },
+  pagada:     { label: 'En curso',    color: 'text-blue-700',   bg: 'bg-blue-100'   },
+  en_entrega: { label: 'En entrega',  color: 'text-indigo-700', bg: 'bg-indigo-100' },
+  completada: { label: 'Completada',  color: 'text-green-700',  bg: 'bg-green-100'  },
+  cancelada:  { label: 'Cancelada',   color: 'text-red-600',    bg: 'bg-red-100'    },
 }
 
-const TRANSICIONES_VENDEDOR: Record<string, OrdenEstado[]> = {
-  pagada:     ['en_entrega'],
-  en_entrega: ['completada'],
+function useTicker(dateStr: string) {
+  const [elapsed, setElapsed] = useState(0)
+  useEffect(() => {
+    const base = Date.now() - new Date(dateStr).getTime()
+    setElapsed(Math.floor(base / 1000))
+    const id = setInterval(() => setElapsed(s => s + 1), 1000)
+    return () => clearInterval(id)
+  }, [dateStr])
+  const h  = Math.floor(elapsed / 3600)
+  const m  = Math.floor((elapsed % 3600) / 60)
+  const s  = elapsed % 60
+  if (h > 0) return `${h}h ${String(m).padStart(2,'0')}min`
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')} seg`
 }
 
-function tiempoRelativo(dateStr: string) {
-  const diff = Date.now() - new Date(dateStr).getTime()
-  const mins  = Math.floor(diff / 60_000)
-  const horas = Math.floor(mins / 60)
-  const dias  = Math.floor(horas / 24)
-  if (dias  > 0) return `hace ${dias}d`
-  if (horas > 0) return `hace ${horas}h`
-  if (mins  > 0) return `hace ${mins}min`
-  return 'ahora'
+function FilaPedido({ orden, idx, onEstadoChange }: {
+  orden: Orden
+  idx: number
+  onEstadoChange: (id: string, estado: OrdenEstado) => void
+}) {
+  const [cambiando, setCambiando] = useState<string | null>(null)
+  const timer = useTicker(orden.created_at)
+  const chip  = ESTADO_CHIP[orden.estado]
+  const items = orden.items ?? []
+  const resumen = items.slice(0, 2).map(i => `${i.cantidad}x ${i.producto?.nombre ?? '…'}`).join(', ')
+  const extra   = items.length > 2 ? ` +${items.length - 2}` : ''
+  const fecha   = new Date(orden.created_at).toLocaleString('es-CO', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' })
+  const esPagada = ['pagada','en_entrega','completada'].includes(orden.estado)
+
+  async function cambiarEstado(nuevoEstado: OrdenEstado) {
+    setCambiando(nuevoEstado)
+    try {
+      await api.patch(`/api/ordenes/${orden.id_orden}/estado`, { estado: nuevoEstado })
+      onEstadoChange(orden.id_orden, nuevoEstado)
+    } catch { /* silencioso */ }
+    finally { setCambiando(null) }
+  }
+
+  return (
+    <div className={`flex items-center gap-0 border-b border-gray-100 hover:bg-gray-50 transition-colors ${orden.estado === 'cancelada' ? 'opacity-60' : ''}`}>
+      {/* FECHA */}
+      <div className="w-44 flex-shrink-0 px-4 py-3">
+        <p className="text-xs font-semibold text-blue-600">
+          #{idx + 1} 🛵 A domicilio
+        </p>
+        <p className="text-[11px] text-orange-500 flex items-center gap-1 mt-0.5">
+          <Clock size={10} /> {orden.estado === 'completada' || orden.estado === 'cancelada' ? fecha : timer}
+        </p>
+        <p className="text-[10px] text-gray-400 mt-0.5 font-mono">
+          WEB · {orden.id_orden.slice(-8).toUpperCase()}
+        </p>
+        <p className="text-[10px] text-gray-400">{fecha}</p>
+      </div>
+
+      {/* ESTADO */}
+      <div className="w-36 flex-shrink-0 px-3 py-3 flex flex-col gap-1.5">
+        <span className={`inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded ${chip.color} ${chip.bg} w-fit`}>
+          {chip.label}
+        </span>
+        <span className={`inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded w-fit ${
+          esPagada ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
+        }`}>
+          {esPagada ? 'Pagado' : 'No pagado'}
+        </span>
+      </div>
+
+      {/* TOTAL */}
+      <div className="w-28 flex-shrink-0 px-3 py-3">
+        <p className="text-sm font-bold text-gray-800">${Number(orden.total).toLocaleString('es-CO')}</p>
+        <p className="text-[10px] text-gray-400 capitalize mt-0.5">{orden.metodo_pago}</p>
+      </div>
+
+      {/* CLIENTE */}
+      <div className="flex-1 min-w-0 px-3 py-3">
+        <p className="text-sm font-medium text-gray-800 truncate">{orden.comprador?.nombre ?? 'Comprador'}</p>
+        <p className="text-[11px] text-gray-400 truncate mt-0.5">{resumen}{extra}</p>
+      </div>
+
+      {/* ACCIONES */}
+      <div className="flex-shrink-0 px-3 py-3 flex items-center gap-2">
+        {orden.estado === 'pendiente' && (
+          <>
+            <button
+              onClick={() => cambiarEstado('cancelada')}
+              disabled={!!cambiando}
+              className="px-3 py-1.5 text-xs font-medium border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50">
+              {cambiando === 'cancelada' ? <Loader2 size={12} className="animate-spin" /> : '✕ Cancelar'}
+            </button>
+            <button
+              disabled
+              className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg opacity-40 cursor-not-allowed flex items-center gap-1">
+              $ Cobrar
+            </button>
+            <button
+              onClick={() => cambiarEstado('pagada')}
+              disabled={!!cambiando}
+              className="px-3 py-1.5 text-xs font-medium bg-gray-200 hover:bg-green-600 hover:text-white text-gray-600 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1">
+              {cambiando === 'pagada' ? <Loader2 size={12} className="animate-spin" /> : '✓ Aceptar'}
+            </button>
+          </>
+        )}
+        {orden.estado === 'pagada' && (
+          <>
+            <button
+              onClick={() => cambiarEstado('cancelada')}
+              disabled={!!cambiando}
+              className="px-3 py-1.5 text-xs font-medium border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50">
+              ✕ Cancelar
+            </button>
+            <button
+              onClick={() => cambiarEstado('en_entrega')}
+              disabled={!!cambiando}
+              className="px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1">
+              {cambiando === 'en_entrega' ? <Loader2 size={12} className="animate-spin" /> : <><Truck size={11} /> Enviar</>}
+            </button>
+          </>
+        )}
+        {orden.estado === 'en_entrega' && (
+          <button
+            onClick={() => cambiarEstado('completada')}
+            disabled={!!cambiando}
+            className="px-3 py-1.5 text-xs font-medium bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1">
+            {cambiando === 'completada' ? <Loader2 size={12} className="animate-spin" /> : <><CheckCircle size={11} /> Completar</>}
+          </button>
+        )}
+        {orden.estado === 'completada' && (
+          <span className="text-xs text-green-600 flex items-center gap-1 px-2"><CheckCircle size={12} /> Listo</span>
+        )}
+        {orden.estado === 'cancelada' && (
+          <span className="text-xs text-red-400 flex items-center gap-1 px-2"><Ban size={12} /> Cancelada</span>
+        )}
+      </div>
+    </div>
+  )
 }
 
 function TabPedidos({ ventas, onEstadoChange }: {
   ventas: Orden[]
   onEstadoChange: (id: string, estado: OrdenEstado) => void
 }) {
-  const [filtro, setFiltro] = useState<OrdenEstado | 'todos'>('todos')
-  const [cambiando, setCambiando] = useState<string | null>(null)
+  const [filtro, setFiltro] = useState<'todo' | 'pendiente' | 'en_curso' | 'completada' | 'cancelada'>('todo')
 
-  const FILTROS: { key: OrdenEstado | 'todos'; label: string }[] = [
-    { key: 'todos',      label: `Todos (${ventas.length})` },
-    { key: 'pendiente',  label: `Pendiente (${ventas.filter(o => o.estado === 'pendiente').length})` },
-    { key: 'pagada',     label: `Pagada (${ventas.filter(o => o.estado === 'pagada').length})` },
-    { key: 'en_entrega', label: `En entrega (${ventas.filter(o => o.estado === 'en_entrega').length})` },
-    { key: 'completada', label: `Completada (${ventas.filter(o => o.estado === 'completada').length})` },
-    { key: 'cancelada',  label: `Cancelada (${ventas.filter(o => o.estado === 'cancelada').length})` },
+  const enCurso = ventas.filter(o => o.estado === 'pagada' || o.estado === 'en_entrega')
+  const pendientes = ventas.filter(o => o.estado === 'pendiente')
+  const completadas = ventas.filter(o => o.estado === 'completada')
+  const canceladas = ventas.filter(o => o.estado === 'cancelada')
+
+  const lista = filtro === 'todo'       ? ventas
+    : filtro === 'pendiente'  ? pendientes
+    : filtro === 'en_curso'   ? enCurso
+    : filtro === 'completada' ? completadas
+    : canceladas
+
+  const FILTROS = [
+    { key: 'todo'      as const, label: 'Todo',       count: ventas.length        },
+    { key: 'pendiente' as const, label: 'Pendiente',  count: pendientes.length    },
+    { key: 'en_curso'  as const, label: 'En curso',   count: enCurso.length       },
+    { key: 'completada'as const, label: 'Completada', count: completadas.length   },
+    { key: 'cancelada' as const, label: 'Cancelada',  count: canceladas.length    },
   ]
 
-  const lista = filtro === 'todos' ? ventas : ventas.filter(o => o.estado === filtro)
-
-  async function avanzarEstado(orden: Orden) {
-    const siguientes = TRANSICIONES_VENDEDOR[orden.estado]
-    if (!siguientes?.length) return
-    const nuevo = siguientes[0]
-    setCambiando(orden.id_orden)
-    try {
-      await api.patch(`/api/ordenes/${orden.id_orden}/estado`, { estado: nuevo })
-      onEstadoChange(orden.id_orden, nuevo)
-    } catch { /* silencioso */ }
-    finally { setCambiando(null) }
-  }
-
   return (
-    <div className="space-y-4">
-      {/* Chips de filtro */}
-      <div className="flex gap-2 flex-wrap">
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      {/* Filtros */}
+      <div className="flex items-center gap-1 px-3 py-2.5 border-b border-gray-100 overflow-x-auto scrollbar-hide">
+        <Search size={14} className="text-gray-400 flex-shrink-0 mr-1" />
         {FILTROS.map(f => (
           <button key={f.key} onClick={() => setFiltro(f.key)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
               filtro === f.key
-                ? 'bg-green-700 text-white'
-                : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                ? 'bg-blue-600 text-white'
+                : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
             }`}>
+            {f.key === 'todo' && filtro === 'todo' && <CheckCircle size={11} />}
             {f.label}
+            {f.count > 0 && (
+              <span className={`text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-0.5 ${
+                filtro === f.key ? 'bg-white/20' : 'bg-gray-100 text-gray-500'
+              }`}>
+                {f.count}
+              </span>
+            )}
           </button>
         ))}
+        <div className="ml-auto flex items-center gap-2 flex-shrink-0 text-xs text-gray-500 pl-2">
+          Total: <span className="font-semibold text-gray-700">
+            ${lista.reduce((s,o) => s + Number(o.total), 0).toLocaleString('es-CO')}
+          </span>
+        </div>
       </div>
 
+      {/* Cabecera tabla */}
+      <div className="flex items-center gap-0 bg-gray-50 border-b border-gray-200 px-0">
+        <div className="w-44 flex-shrink-0 px-4 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Fecha</div>
+        <div className="w-36 flex-shrink-0 px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Estado</div>
+        <div className="w-28 flex-shrink-0 px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Total</div>
+        <div className="flex-1 px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Cliente</div>
+        <div className="w-52 flex-shrink-0 px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Acciones</div>
+      </div>
+
+      {/* Filas */}
       {lista.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 text-center py-16">
-          <ClipboardList size={40} className="mx-auto text-gray-200 mb-3" />
-          <p className="text-gray-400 text-sm">No hay pedidos en esta categoría</p>
+        <div className="text-center py-20">
+          <div className="text-4xl mb-3">🍴</div>
+          <p className="text-gray-500 text-sm">Crea pedidos para cada tipo de servicio</p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {lista.map(orden => {
-            const est = ESTADO_CONFIG[orden.estado]
-            const siguientes = TRANSICIONES_VENDEDOR[orden.estado]
-            const items = orden.items ?? []
-            const resumen = items.slice(0, 2).map(i => `${i.cantidad}x ${i.producto?.nombre ?? '…'}`).join(', ')
-            const extra = items.length > 2 ? ` +${items.length - 2} más` : ''
-            return (
-              <div key={orden.id_orden} className="bg-white rounded-xl border border-gray-200 px-4 py-3.5 flex items-start gap-4">
-                {/* Dot estado */}
-                <div className="flex flex-col items-center gap-1 pt-0.5 flex-shrink-0">
-                  <span className={`w-2.5 h-2.5 rounded-full ${est.dot}`} />
-                </div>
-
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-xs font-mono text-gray-400">#{orden.id_orden.slice(-6).toUpperCase()}</span>
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${est.color} ${est.bg}`}>{est.label}</span>
-                    <span className="text-xs text-gray-400 ml-auto flex-shrink-0">{tiempoRelativo(orden.created_at)}</span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <User size={12} className="text-gray-400 flex-shrink-0" />
-                    <span className="text-sm font-medium text-gray-800 truncate">
-                      {orden.comprador?.nombre ?? 'Comprador'}
-                    </span>
-                    <span className="text-xs text-gray-400 flex-shrink-0">·</span>
-                    <span className="text-xs text-gray-500 capitalize flex-shrink-0">{orden.metodo_pago}</span>
-                  </div>
-
-                  <p className="text-xs text-gray-500 truncate">{resumen}{extra}</p>
-                </div>
-
-                {/* Total + acción */}
-                <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                  <span className="text-sm font-bold text-gray-800">
-                    ${Number(orden.total).toLocaleString('es-CO')}
-                  </span>
-                  {siguientes?.length ? (
-                    <button
-                      onClick={() => avanzarEstado(orden)}
-                      disabled={cambiando === orden.id_orden}
-                      className="flex items-center gap-1 bg-green-700 hover:bg-green-800 text-white text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-60">
-                      {cambiando === orden.id_orden
-                        ? <Loader2 size={11} className="animate-spin" />
-                        : orden.estado === 'pagada' ? <Truck size={11} /> : <CheckCircle size={11} />}
-                      {orden.estado === 'pagada' ? 'Enviar' : 'Completar'}
-                    </button>
-                  ) : orden.estado === 'completada' ? (
-                    <span className="text-xs text-green-600 flex items-center gap-1"><CheckCircle size={11} /> Listo</span>
-                  ) : orden.estado === 'cancelada' ? (
-                    <span className="text-xs text-red-500 flex items-center gap-1"><Ban size={11} /> Cancelada</span>
-                  ) : null}
-                </div>
-              </div>
-            )
-          })}
-        </div>
+        lista.map((o, i) => (
+          <FilaPedido key={o.id_orden} orden={o} idx={i} onEstadoChange={onEstadoChange} />
+        ))
       )}
     </div>
   )
