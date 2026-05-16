@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { PrismaClient } from '@prisma/client'
 import { requireAuth, requireRole, type AuthRequest } from '../middleware/auth.js'
 import { getIO } from '../socket.js'
+import { enviarNuevaOrden, enviarCambioEstadoOrden } from '../services/email.js'
 
 const router = Router()
 const prisma = new PrismaClient()
@@ -60,18 +61,24 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
     include: { items: { include: { producto: { select: { id_vendedor: true } } } } },
   })
 
-  // Notificar a cada vendedor involucrado
+  // Notificar a cada vendedor (WebSocket + email)
   const io = getIO()
-  if (io) {
-    const vendedores = new Set(orden.items.map(i => i.producto.id_vendedor))
-    vendedores.forEach(vendedorId => {
-      io.to(`user:${vendedorId}`).emit('nueva_orden', {
-        id_orden: orden.id_orden,
-        total: Number(orden.total),
-        metodo_pago: orden.metodo_pago,
-        created_at: orden.created_at,
-      })
+  const vendedores = new Set(orden.items.map(i => i.producto.id_vendedor))
+
+  for (const vendedorId of vendedores) {
+    io?.to(`user:${vendedorId}`).emit('nueva_orden', {
+      id_orden: orden.id_orden,
+      total: Number(orden.total),
+      metodo_pago: orden.metodo_pago,
+      created_at: orden.created_at,
     })
+
+    prisma.usuario.findUnique({ where: { id_usuario: vendedorId }, select: { nombre: true, email: true } })
+      .then(v => {
+        if (v) enviarNuevaOrden(v.nombre, v.email, Number(orden.total), orden.id_orden)
+          .catch(e => console.error('[email nueva_orden]', e))
+      })
+      .catch(() => {})
   }
 
   res.status(201).json({ data: orden })
@@ -217,11 +224,20 @@ router.patch('/:id/estado', requireAuth, async (req: AuthRequest, res) => {
     data: { estado: estado as 'pendiente' | 'pagada' | 'en_entrega' | 'completada' | 'cancelada' },
   })
 
-  // Notificar al comprador del cambio de estado
+  // Notificar al comprador (WebSocket + email)
   getIO()?.to(`user:${orden.id_comprador}`).emit('orden_actualizada', {
     id_orden: orden.id_orden,
     estado,
   })
+
+  if (['pagada', 'en_entrega', 'completada', 'cancelada'].includes(estado)) {
+    prisma.usuario.findUnique({ where: { id_usuario: orden.id_comprador }, select: { nombre: true, email: true } })
+      .then(c => {
+        if (c) enviarCambioEstadoOrden(c.nombre, c.email, estado, orden.id_orden)
+          .catch(e => console.error('[email estado_orden]', e))
+      })
+      .catch(() => {})
+  }
 
   // Si se cancela, restaurar stock
   if (estado === 'cancelada') {

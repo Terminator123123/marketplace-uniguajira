@@ -46,11 +46,15 @@ router.post('/wompi', async (req: Request, res: Response) => {
   const estado = tx.status // 'APPROVED' | 'DECLINED' | 'VOIDED' | 'ERROR'
 
   const orden = await prisma.orden.findFirst({
-    where: { id_orden: referencia, estado: 'pendiente' },
+    where: { id_orden: referencia },
     include: { items: true },
   })
 
   if (!orden) { res.sendStatus(200); return }
+
+  // Idempotencia: si ya está en el estado final correcto, no hacer nada
+  if (estado === 'APPROVED' && orden.estado === 'pagada') { res.sendStatus(200); return }
+  if (['DECLINED', 'VOIDED', 'ERROR'].includes(estado) && orden.estado === 'cancelada') { res.sendStatus(200); return }
 
   if (estado === 'APPROVED') {
     await prisma.$transaction(async prismaTx => {

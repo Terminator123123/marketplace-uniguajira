@@ -83,6 +83,52 @@ export async function enviarVerificacion(nombre: string, email: string, token: s
   })
 }
 
+export async function enviarNuevaOrden(nombreVendedor: string, emailVendedor: string, total: number, idOrden: string) {
+  const link = `${process.env['FRONTEND_URL'] ?? 'http://localhost:5173'}/dashboard/ordenes/${idOrden}`
+  await send({
+    from: FROM,
+    to: emailVendedor,
+    subject: '¡Nueva orden recibida! — Marketplace Uniguajira',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+        <h2 style="color:#15803d">¡Tienes una nueva orden!</h2>
+        <p>Hola <strong>${nombreVendedor}</strong>, acabas de recibir una compra en tu tienda.</p>
+        <p style="font-size:18px;font-weight:bold;color:#111">Total: $${total.toLocaleString('es-CO')} COP</p>
+        <a href="${link}" style="display:inline-block;background:#15803d;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;margin-top:12px">
+          Ver orden
+        </a>
+        <p style="color:#6b7280;font-size:12px;margin-top:24px">Universidad de La Guajira · Marketplace Uniguajira</p>
+      </div>
+    `,
+  })
+}
+
+export async function enviarCambioEstadoOrden(nombreComprador: string, emailComprador: string, estado: string, idOrden: string) {
+  const estados: Record<string, string> = {
+    en_entrega: 'En camino 🚚',
+    completada: 'Completada ✅',
+    cancelada: 'Cancelada ❌',
+    pagada: 'Pago confirmado 💳',
+  }
+  const link = `${process.env['FRONTEND_URL'] ?? 'http://localhost:5173'}/mis-ordenes/${idOrden}`
+  await send({
+    from: FROM,
+    to: emailComprador,
+    subject: `Tu orden fue actualizada — ${estados[estado] ?? estado}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+        <h2 style="color:#15803d">Actualización de tu orden</h2>
+        <p>Hola <strong>${nombreComprador}</strong>, el estado de tu orden ha cambiado a:</p>
+        <p style="font-size:18px;font-weight:bold;color:#111">${estados[estado] ?? estado}</p>
+        <a href="${link}" style="display:inline-block;background:#15803d;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;margin-top:12px">
+          Ver mi orden
+        </a>
+        <p style="color:#6b7280;font-size:12px;margin-top:24px">Universidad de La Guajira · Marketplace Uniguajira</p>
+      </div>
+    `,
+  })
+}
+
 export async function enviarSolicitudAprobada(nombre: string, email: string, rol: string) {
   await send({
     from: FROM,

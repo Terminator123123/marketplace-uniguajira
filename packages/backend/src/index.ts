@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import http from 'http'
-import express from 'express'
+import express, { type Request, type Response, type NextFunction } from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
@@ -41,6 +41,19 @@ app.use('/webhooks', webhooksRouter)
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
+})
+
+// 404
+app.use((_req: Request, res: Response) => {
+  res.status(404).json({ error: 'Ruta no encontrada' })
+})
+
+// Error global — captura cualquier excepción no manejada en routes
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  console.error('[error]', err.message, err.stack)
+  const status = (err as NodeJS.ErrnoException & { status?: number }).status ?? 500
+  res.status(status).json({ error: status === 500 ? 'Error interno del servidor' : err.message })
 })
 
 const httpServer = http.createServer(app)
