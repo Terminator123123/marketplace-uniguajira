@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { PrismaClient } from '@prisma/client'
 import { requireAuth, requireRole, type AuthRequest } from '../middleware/auth.js'
+import { getIO } from '../socket.js'
 
 const router = Router()
 const prisma = new PrismaClient()
@@ -56,8 +57,22 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       metodo_pago,
       items: { create: itemsConPrecio },
     },
-    include: { items: true },
+    include: { items: { include: { producto: { select: { id_vendedor: true } } } } },
   })
+
+  // Notificar a cada vendedor involucrado
+  const io = getIO()
+  if (io) {
+    const vendedores = new Set(orden.items.map(i => i.producto.id_vendedor))
+    vendedores.forEach(vendedorId => {
+      io.to(`user:${vendedorId}`).emit('nueva_orden', {
+        id_orden: orden.id_orden,
+        total: Number(orden.total),
+        metodo_pago: orden.metodo_pago,
+        created_at: orden.created_at,
+      })
+    })
+  }
 
   res.status(201).json({ data: orden })
 })
@@ -72,6 +87,36 @@ router.get('/mis-ordenes', requireAuth, async (req: AuthRequest, res) => {
     },
   })
   res.json({ data: ordenes })
+})
+
+// Admin: todas las órdenes del sistema
+router.get('/admin/todas', requireAuth, requireRole('admin'), async (req, res) => {
+  const { estado, page = '1', limit = '20' } = req.query as Record<string, string>
+  const pageNum = Math.max(1, parseInt(page))
+  const limitNum = Math.min(50, parseInt(limit))
+
+  const where: Record<string, unknown> = {}
+  if (estado) where['estado'] = estado
+
+  const [ordenes, total] = await Promise.all([
+    prisma.orden.findMany({
+      where,
+      include: {
+        comprador: { select: { nombre: true, email: true } },
+        items: {
+          include: {
+            producto: { select: { nombre: true, id_vendedor: true } },
+          },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+      skip: (pageNum - 1) * limitNum,
+      take: limitNum,
+    }),
+    prisma.orden.count({ where }),
+  ])
+
+  res.json({ data: ordenes, total, page: pageNum, totalPages: Math.ceil(total / limitNum) })
 })
 
 // Órdenes del vendedor (contienen al menos un producto suyo)
@@ -170,6 +215,12 @@ router.patch('/:id/estado', requireAuth, async (req: AuthRequest, res) => {
   const actualizada = await prisma.orden.update({
     where: { id_orden: req.params['id'] },
     data: { estado: estado as 'pendiente' | 'pagada' | 'en_entrega' | 'completada' | 'cancelada' },
+  })
+
+  // Notificar al comprador del cambio de estado
+  getIO()?.to(`user:${orden.id_comprador}`).emit('orden_actualizada', {
+    id_orden: orden.id_orden,
+    estado,
   })
 
   // Si se cancela, restaurar stock

@@ -68,6 +68,7 @@ model Usuario {
   solicitudes          SolicitudRol[]
   tokens_recuperacion  TokenRecuperacion[]
   tokens_verificacion  TokenVerificacion[]
+  favoritos            Favorito[]
 
   @@map("usuarios")
 }
@@ -142,10 +143,11 @@ model Producto {
   created_at  DateTime     @default(now())
   updated_at  DateTime     @updatedAt
 
-  tienda   Tienda           @relation(fields: [id_tienda], references: [id_tienda])
-  imagenes ImagenProducto[]
-  items    ItemOrden[]
-  resenas  Resena[]
+  tienda    Tienda           @relation(fields: [id_tienda], references: [id_tienda])
+  imagenes  ImagenProducto[]
+  items     ItemOrden[]
+  resenas   Resena[]
+  favoritos Favorito[]
 
   @@index([categoria, tipo, activo])
   @@index([id_tienda, activo])
@@ -230,4 +232,18 @@ model Mensaje {
 
   @@index([id_orden, created_at(sort: Asc)])
   @@map("mensajes")
+}
+
+model Favorito {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_usuario  String   @db.Uuid
+  id_producto String   @db.Uuid
+  created_at  DateTime @default(now())
+
+  usuario  Usuario  @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
+  producto Producto @relation(fields: [id_producto], references: [id_producto], onDelete: Cascade)
+
+  @@unique([id_usuario, id_producto])
+  @@index([id_usuario])
+  @@map("favoritos")
 }

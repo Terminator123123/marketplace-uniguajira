@@ -11,6 +11,12 @@ interface SocketUser {
   rol: UserRole
 }
 
+let _io: SocketServer | null = null
+
+export function getIO(): SocketServer | null {
+  return _io
+}
+
 export function initSocket(httpServer: HttpServer, frontendUrl: string) {
   const io = new SocketServer(httpServer, {
     cors: { origin: frontendUrl, credentials: true },
@@ -34,8 +40,13 @@ export function initSocket(httpServer: HttpServer, frontendUrl: string) {
     }
   })
 
+  _io = io
+
   io.on('connection', (socket) => {
     const user = socket.data['user'] as SocketUser
+
+    // Sala personal para notificaciones push al usuario
+    socket.join(`user:${user.id}`)
 
     // Unirse a sala de una orden
     socket.on('join_order', async (id_orden: string) => {

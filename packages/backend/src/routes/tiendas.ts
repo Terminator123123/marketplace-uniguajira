@@ -59,6 +59,48 @@ router.get('/mi-tienda/productos', requireAuth, requireRole('vendedor', 'admin')
   res.json({ data: productos })
 })
 
+// Admin: listar todas las tiendas
+router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
+  const { estado, buscar, page = '1', limit = '20' } = req.query as Record<string, string>
+  const pageNum = Math.max(1, parseInt(page))
+  const limitNum = Math.min(50, parseInt(limit))
+
+  const where: Record<string, unknown> = {}
+  if (estado) where['estado'] = estado
+  if (buscar) where['nombre_tienda'] = { contains: buscar, mode: 'insensitive' }
+
+  const [tiendas, total] = await Promise.all([
+    prisma.tienda.findMany({
+      where,
+      include: {
+        vendedor: { select: { nombre: true, email: true, facultad: true } },
+        _count: { select: { productos: { where: { activo: true } } } },
+      },
+      orderBy: { created_at: 'desc' },
+      skip: (pageNum - 1) * limitNum,
+      take: limitNum,
+    }),
+    prisma.tienda.count({ where }),
+  ])
+
+  res.json({ data: tiendas, total, page: pageNum, totalPages: Math.ceil(total / limitNum) })
+})
+
+// Admin: cambiar estado de una tienda
+router.patch('/:id/estado', requireAuth, requireRole('admin'), async (req, res) => {
+  const { estado } = req.body as { estado: string }
+  if (!['pendiente', 'activa', 'suspendida'].includes(estado)) {
+    res.status(400).json({ error: 'Estado inválido' }); return
+  }
+
+  const tienda = await prisma.tienda.update({
+    where: { id_tienda: req.params['id'] },
+    data: { estado: estado as 'pendiente' | 'activa' | 'suspendida' },
+    select: { id_tienda: true, nombre_tienda: true, estado: true },
+  })
+  res.json({ data: tienda, message: `Tienda ${estado}` })
+})
+
 // Tienda pública por id
 router.get('/:id', async (req, res) => {
   const tienda = await prisma.tienda.findUnique({

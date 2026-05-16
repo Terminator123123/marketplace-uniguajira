@@ -112,6 +112,17 @@ router.put('/:id', requireAuth, requireRole('vendedor'), async (req: AuthRequest
   res.json({ data: actualizado })
 })
 
+// Categorías disponibles (distinct de productos activos)
+router.get('/categorias/lista', async (_req, res) => {
+  const cats = await prisma.producto.findMany({
+    where: { activo: true },
+    select: { categoria: true },
+    distinct: ['categoria'],
+    orderBy: { categoria: 'asc' },
+  })
+  res.json({ data: cats.map(c => c.categoria) })
+})
+
 // Eliminar producto
 router.delete('/:id', requireAuth, requireRole('vendedor', 'admin'), async (req: AuthRequest, res) => {
   const producto = await prisma.producto.findUnique({ where: { id_producto: req.params['id'] } })
