@@ -1,10 +1,20 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env['RESEND_API_KEY'])
 const FROM = process.env['EMAIL_FROM'] ?? 'onboarding@resend.dev'
 
-async function send(payload: Parameters<typeof resend.emails.send>[0]) {
-  const { data, error } = await resend.emails.send(payload)
+function getResend() {
+  const key = process.env['RESEND_API_KEY']
+  if (!key) {
+    console.warn('[email] RESEND_API_KEY no configurada — emails deshabilitados')
+    return null
+  }
+  return new Resend(key)
+}
+
+async function send(payload: { from: string; to: string; subject: string; html: string }) {
+  const client = getResend()
+  if (!client) return
+  const { data, error } = await client.emails.send(payload)
   if (error) {
     console.error('[Resend error]', error)
   } else {
@@ -22,7 +32,7 @@ export async function enviarBienvenida(nombre: string, email: string) {
         <h2 style="color:#15803d">¡Hola, ${nombre}!</h2>
         <p>Tu cuenta en el <strong>Marketplace Uniguajira</strong> ha sido creada exitosamente.</p>
         <p>Ya puedes explorar el catálogo y comprar productos de tus compañeros.</p>
-        <a href="http://localhost:5173/catalogo" style="display:inline-block;background:#15803d;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;margin-top:12px">
+        <a href="${process.env['FRONTEND_URL'] ?? 'http://localhost:5173'}/catalogo" style="display:inline-block;background:#15803d;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;margin-top:12px">
           Ver catálogo
         </a>
         <p style="color:#6b7280;font-size:12px;margin-top:24px">Universidad de La Guajira · Marketplace Uniguajira</p>
@@ -32,7 +42,7 @@ export async function enviarBienvenida(nombre: string, email: string) {
 }
 
 export async function enviarRecuperacion(nombre: string, email: string, token: string) {
-  const link = `http://localhost:5173/reset-password?token=${token}`
+  const link = `${process.env['FRONTEND_URL'] ?? 'http://localhost:5173'}/reset-password?token=${token}`
   await send({
     from: FROM,
     to: email,
@@ -82,7 +92,7 @@ export async function enviarSolicitudAprobada(nombre: string, email: string, rol
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
         <h2 style="color:#15803d">¡Solicitud aprobada! 🎉</h2>
         <p>Hola <strong>${nombre}</strong>, tu solicitud para ser <strong>${rol}</strong> en el Marketplace Uniguajira fue aprobada.</p>
-        <a href="http://localhost:5173/dashboard" style="display:inline-block;background:#15803d;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;margin-top:12px">
+        <a href="${process.env['FRONTEND_URL'] ?? 'http://localhost:5173'}/dashboard" style="display:inline-block;background:#15803d;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;margin-top:12px">
           Ir a mi dashboard
         </a>
         <p style="color:#6b7280;font-size:12px;margin-top:24px">Universidad de La Guajira · Marketplace Uniguajira</p>
