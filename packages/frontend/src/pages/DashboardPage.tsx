@@ -29,7 +29,7 @@ interface Solicitud {
   created_at: string
 }
 
-type Tab = 'resumen' | 'pedidos' | 'menu' | 'inventario' | 'tienda' | 'configuracion' | 'admin'
+type Tab = 'resumen' | 'pedidos' | 'menu' | 'inventario' | 'tienda' | 'admin'
 
 export default function DashboardPage() {
   const { usuario, token } = useAuthStore()
@@ -159,7 +159,6 @@ export default function DashboardPage() {
     { key: 'menu', label: 'Menú', icon: Package },
     { key: 'inventario', label: 'Inventario', icon: Boxes },
     { key: 'tienda', label: 'Mi tienda', icon: Store },
-    { key: 'configuracion', label: 'Configuración', icon: Settings },
     ...(esAdmin ? [{ key: 'admin' as Tab, label: 'Admin', icon: Shield }] : []),
   ]
 
@@ -212,7 +211,14 @@ export default function DashboardPage() {
             ))}
           </nav>
 
-          <div className="mt-4 bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+          <div className="mt-3">
+            <Link to="/perfil"
+              className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-800 rounded-xl border border-gray-200 bg-white transition-colors">
+              <Settings size={15} /> Mi cuenta
+            </Link>
+          </div>
+
+          <div className="mt-3 bg-white rounded-xl border border-gray-200 p-4 space-y-3">
             <div>
               <p className="text-xs text-gray-400">Ingresos netos</p>
               <p className="text-lg font-bold text-green-700">${totalNeto.toLocaleString('es-CO')}</p>
@@ -284,14 +290,6 @@ export default function DashboardPage() {
 
           {tab === 'tienda' && (
             <FormTienda token={token!} tienda={tienda} onSaved={setTienda} />
-          )}
-          {tab === 'configuracion' && (
-            <div className="space-y-4">
-              <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2">
-                <Settings size={16} className="text-green-700" /> Configuración de cuenta
-              </h2>
-              <FormCuentaBancaria />
-            </div>
           )}
           {tab === 'admin' && <AdminPanel token={token!} />}
         </main>

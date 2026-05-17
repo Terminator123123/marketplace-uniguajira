@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { z } from 'zod'
+import bcrypt from 'bcryptjs'
 import { PrismaClient } from '@prisma/client'
 import { requireAuth, requireRole, type AuthRequest } from '../middleware/auth.js'
 import { validateUUID } from '../middleware/security.js'
@@ -39,6 +40,37 @@ router.put('/me', requireAuth, async (req: AuthRequest, res) => {
     select: { id_usuario: true, nombre: true, bio: true, facultad: true, foto_url: true },
   })
   res.json({ data: usuario })
+})
+
+// ─── Cambiar contraseña ───────────────────────────────────────────────────────
+
+router.put('/me/password', requireAuth, async (req: AuthRequest, res) => {
+  const Schema = z.object({
+    password_actual: z.string().min(1),
+    password_nuevo: z.string()
+      .min(16, 'Mínimo 16 caracteres')
+      .regex(/[A-Z]/, 'Debe tener mayúscula')
+      .regex(/[a-z]/, 'Debe tener minúscula')
+      .regex(/[0-9]/, 'Debe tener número')
+      .regex(/[^A-Za-z0-9]/, 'Debe tener símbolo'),
+  })
+  const parsed = Schema.safeParse(req.body)
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.errors[0]?.message ?? 'Datos inválidos' }); return
+  }
+  const { password_actual, password_nuevo } = parsed.data
+  const usuario = await prisma.usuario.findUnique({ where: { id_usuario: req.user!.id } })
+  if (!usuario) { res.status(404).json({ error: 'Usuario no encontrado' }); return }
+
+  const ok = await bcrypt.compare(password_actual, usuario.password_hash)
+  if (!ok) { res.status(401).json({ error: 'Contraseña actual incorrecta' }); return }
+
+  const password_hash = await bcrypt.hash(password_nuevo, 12)
+  await prisma.usuario.update({
+    where: { id_usuario: req.user!.id },
+    data: { password_hash, intentos_fallidos: 0, bloqueado_hasta: null },
+  })
+  res.json({ message: 'Contraseña actualizada correctamente' })
 })
 
 // ─── Admin: listado de usuarios ──────────────────────────────────────────────
