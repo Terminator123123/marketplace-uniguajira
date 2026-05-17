@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import api from '../lib/api.ts'
+import axios from 'axios'
 import { getSocket } from '../lib/socket.ts'
 import { useAuthStore } from '../store/auth.ts'
 import type { Orden, OrdenEstado, Producto } from '@marketplace/shared'
@@ -1377,8 +1378,10 @@ function FilaPedido({ orden, idx, onEstadoChange }: {
     try {
       await api.patch(`/api/ordenes/${orden.id_orden}/estado`, { estado: nuevoEstado })
       onEstadoChange(orden.id_orden, nuevoEstado)
-    } catch { /* silencioso */ }
-    finally { setCambiando(null) }
+    } catch (err: unknown) {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.error : 'Error al cambiar estado'
+      alert(msg)
+    } finally { setCambiando(null) }
   }
 
   return (
@@ -1437,15 +1440,10 @@ function FilaPedido({ orden, idx, onEstadoChange }: {
               {cambiando === 'cancelada' ? <Loader2 size={12} className="animate-spin" /> : '✕ Cancelar'}
             </button>
             <button
-              disabled
-              className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg opacity-40 cursor-not-allowed flex items-center gap-1">
-              $ Cobrar
-            </button>
-            <button
-              onClick={() => cambiarEstado('pagada')}
+              onClick={() => cambiarEstado('en_entrega')}
               disabled={!!cambiando}
               className="px-3 py-1.5 text-xs font-medium bg-gray-200 hover:bg-green-600 hover:text-white text-gray-600 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1">
-              {cambiando === 'pagada' ? <Loader2 size={12} className="animate-spin" /> : '✓ Aceptar'}
+              {cambiando === 'en_entrega' ? <Loader2 size={12} className="animate-spin" /> : '✓ Aceptar'}
             </button>
           </>
         )}

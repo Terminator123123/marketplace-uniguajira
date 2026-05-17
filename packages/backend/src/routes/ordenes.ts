@@ -216,11 +216,11 @@ router.patch('/:id/estado', validateUUID('id'), requireAuth, async (req: AuthReq
   // Validar transiciones por rol
   const transicionesPermitidas: Record<string, string[]> = {
     comprador: ['cancelada'],
-    vendedor: ['en_entrega', 'completada'],
+    vendedor: ['en_entrega', 'completada', 'cancelada'],
     admin: estadosValidos,
   }
   const estadosOrigenPermitidos: Record<string, string[]> = {
-    en_entrega: ['pagada'],
+    en_entrega: ['pendiente', 'pagada'],
     completada: ['en_entrega'],
     cancelada: ['pendiente'],
   }
