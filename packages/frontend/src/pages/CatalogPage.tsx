@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
-import { Search, SlidersHorizontal, Star, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Search, Star, ChevronLeft, ChevronRight } from 'lucide-react'
 import api from '../lib/api.ts'
 import type { Producto } from '@marketplace/shared'
 
@@ -8,12 +8,13 @@ const CATEGORIAS = ['Todos', 'artesanías', 'papelería', 'tecnología', 'alimen
 const LIMIT = 12
 
 export default function CatalogPage() {
+  const [searchParams] = useSearchParams()
   const [productos, setProductos] = useState<Producto[]>([])
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const [inputBusqueda, setInputBusqueda] = useState('')
   const [busqueda, setBusqueda] = useState('')
-  const [categoria, setCategoria] = useState('')
+  const [categoria, setCategoria] = useState(searchParams.get('categoria') ?? '')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [page, setPage] = useState(1)
@@ -50,27 +51,34 @@ export default function CatalogPage() {
     <div className="max-w-7xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">Catálogo</h1>
 
-      {/* Filtros */}
-      <div className="flex flex-col md:flex-row gap-4 mb-6">
-        <div className="relative flex-1">
-          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            value={inputBusqueda}
-            onChange={e => handleBusqueda(e.target.value)}
-            placeholder="Buscar productos..."
-            className="input pl-9"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <SlidersHorizontal size={18} className="text-gray-500" />
-          <select
-            value={categoria}
-            onChange={e => { setCategoria(e.target.value === 'Todos' ? '' : e.target.value); setPage(1) }}
-            className="input w-auto"
-          >
-            {CATEGORIAS.map(c => <option key={c}>{c}</option>)}
-          </select>
-        </div>
+      {/* Barra de búsqueda */}
+      <div className="relative mb-4">
+        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input
+          value={inputBusqueda}
+          onChange={e => handleBusqueda(e.target.value)}
+          placeholder="Buscar productos..."
+          className="input pl-9 w-full"
+        />
+      </div>
+
+      {/* Chips de categorías — scroll horizontal en móvil */}
+      <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 mb-5 -mx-4 px-4">
+        {CATEGORIAS.map(c => {
+          const val = c === 'Todos' ? '' : c
+          const activo = categoria === val
+          return (
+            <button key={c}
+              onClick={() => { setCategoria(val); setPage(1) }}
+              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
+                activo
+                  ? 'bg-green-700 text-white'
+                  : 'bg-white border border-gray-200 text-gray-600 hover:border-green-400 hover:text-green-700'
+              }`}>
+              {c}
+            </button>
+          )
+        })}
       </div>
 
       {/* Error */}

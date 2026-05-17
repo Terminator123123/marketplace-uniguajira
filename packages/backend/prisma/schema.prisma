@@ -71,6 +71,7 @@ model Usuario {
   facultad         String?  @db.VarChar(100)
   bio              String?
   foto_url         String?  @db.VarChar(255)
+  direccion        String?  @db.VarChar(300)
   rating_promedio  Decimal  @default(0) @db.Decimal(3, 2)
   activo             Boolean   @default(false)
   email_verificado   Boolean   @default(false)
@@ -199,6 +200,7 @@ model Orden {
   estado              OrdenEstado @default(pendiente)
   metodo_pago         MetodoPago
   referencia_pago     String?     @db.VarChar(100)
+  direccion_entrega   String?     @db.VarChar(300)
   created_at          DateTime    @default(now())
   updated_at          DateTime    @updatedAt
 

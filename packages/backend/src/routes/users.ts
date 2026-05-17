@@ -16,7 +16,7 @@ router.get('/me', requireAuth, async (req: AuthRequest, res) => {
     select: {
       id_usuario: true, nombre: true, email: true, rol: true,
       facultad: true, bio: true, foto_url: true, rating_promedio: true,
-      activo: true, email_verificado: true, created_at: true,
+      activo: true, email_verificado: true, created_at: true, direccion: true,
     },
   })
   if (!usuario) { res.status(404).json({ error: 'Usuario no encontrado' }); return }
@@ -28,6 +28,7 @@ router.put('/me', requireAuth, async (req: AuthRequest, res) => {
     nombre: z.string().min(2).max(100).optional(),
     bio: z.string().max(500).optional(),
     facultad: z.string().max(100).optional(),
+    direccion: z.string().max(300).optional(),
   })
   const parsed = UpdateSchema.safeParse(req.body)
   if (!parsed.success) {
@@ -37,7 +38,7 @@ router.put('/me', requireAuth, async (req: AuthRequest, res) => {
   const usuario = await prisma.usuario.update({
     where: { id_usuario: req.user!.id },
     data: parsed.data,
-    select: { id_usuario: true, nombre: true, bio: true, facultad: true, foto_url: true },
+    select: { id_usuario: true, nombre: true, bio: true, facultad: true, foto_url: true, direccion: true },
   })
   res.json({ data: usuario })
 })

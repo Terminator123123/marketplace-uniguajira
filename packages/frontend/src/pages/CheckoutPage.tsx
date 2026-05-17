@@ -24,6 +24,7 @@ export default function CheckoutPage() {
 
   const [metodoPago, setMetodoPago] = useState<MetodoPago>('nequi')
   const [delivery, setDelivery] = useState(true)
+  const [direccionEntrega, setDireccionEntrega] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [paso, setPaso] = useState<'carrito' | 'pagando'>('carrito')
@@ -31,6 +32,13 @@ export default function CheckoutPage() {
   const widgetRef = useRef<HTMLDivElement>(null)
   const [aceptaTerminos, setAceptaTerminos] = useState(false)
   const [errorTerminos, setErrorTerminos] = useState(false)
+
+  useEffect(() => {
+    if (!usuario) return
+    api.get('/api/users/me').then(r => {
+      if (r.data.data?.direccion) setDireccionEntrega(r.data.data.direccion)
+    }).catch(() => {})
+  }, [usuario])
 
   const grupos = useMemo(() => {
     const map = new Map<string, { tienda_nombre: string; items: typeof items }>()
@@ -88,10 +96,16 @@ export default function CheckoutPage() {
     setLoading(true)
     setError('')
     try {
+      if (delivery && !direccionEntrega.trim()) {
+        setError('Ingresa una dirección de entrega')
+        setLoading(false)
+        return
+      }
       // 1. Crear la orden en el backend
       const payload = {
         items: items.map(i => ({ id_producto: i.producto.id_producto, cantidad: i.cantidad })),
         metodo_pago: metodoPago,
+        ...(delivery && { direccion_entrega: direccionEntrega.trim() }),
       }
       const ordenRes = await api.post('/api/ordenes', payload)
       const ordenId: string = ordenRes.data.data.id_orden
@@ -224,6 +238,22 @@ export default function CheckoutPage() {
               <p className="text-xs text-amber-600 mt-2 bg-amber-50 px-3 py-2 rounded-lg">
                 Tu pedido viene de {numTiendas} tiendas. El repartidor cobra ${COSTO_DELIVERY_EXTRA.toLocaleString('es-CO')} adicional por cada tienda extra.
               </p>
+            )}
+            {delivery && (
+              <div className="mt-3">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <MapPin size={14} className="inline mr-1" />
+                  Dirección de entrega *
+                </label>
+                <input
+                  value={direccionEntrega}
+                  onChange={e => setDireccionEntrega(e.target.value)}
+                  placeholder="Ej: Cra 15 #20-30, Riohacha"
+                  className="input"
+                  maxLength={300}
+                  required
+                />
+              </div>
             )}
           </div>
         </div>

@@ -29,7 +29,13 @@ function TabPerfil() {
     nombre: usuario?.nombre ?? '',
     bio: usuario?.bio ?? '',
     facultad: usuario?.facultad ?? '',
+    direccion: '',
   })
+  useEffect(() => {
+    api.get('/api/users/me').then(r => {
+      if (r.data.data?.direccion) setForm(p => ({ ...p, direccion: r.data.data.direccion ?? '' }))
+    }).catch(() => {})
+  }, [])
   const [loading, setLoading] = useState(false)
   const [ok, setOk] = useState(false)
   const [error, setError] = useState('')
@@ -114,6 +120,12 @@ function TabPerfil() {
             <option value="">Sin especificar</option>
             {FACULTADES.map(fac => <option key={fac} value={fac}>{fac}</option>)}
           </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Dirección de entrega</label>
+          <input value={form.direccion} onChange={e => f('direccion', e.target.value)} className="input"
+            placeholder="Ej: Cra 15 #20-30, Riohacha" maxLength={300} />
+          <p className="text-xs text-gray-400 mt-1">Se usará como dirección predeterminada al hacer pedidos</p>
         </div>
 
         {error && <p className="text-red-500 text-sm">{error}</p>}

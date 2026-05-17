@@ -15,6 +15,7 @@ const OrdenSchema = z.object({
     cantidad: z.number().int().positive(),
   })).min(1),
   metodo_pago: z.enum(['nequi', 'daviplata', 'pse']),
+  direccion_entrega: z.string().max(300).optional(),
 })
 
 // Crear orden
@@ -25,7 +26,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
     return
   }
 
-  const { items, metodo_pago } = parsed.data
+  const { items, metodo_pago, direccion_entrega } = parsed.data
 
   const productos = await prisma.producto.findMany({
     where: { id_producto: { in: items.map(i => i.id_producto) }, activo: true },
@@ -63,6 +64,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
       monto_comision,
       monto_vendedor,
       metodo_pago,
+      direccion_entrega,
       items: { create: itemsConPrecio },
     },
     include: { items: { include: { producto: { select: { id_vendedor: true } } } } },

@@ -54,27 +54,27 @@ export default function CartDrawer() {
                     ${Number(producto.precio).toLocaleString('es-CO')} c/u
                   </p>
 
-                  {/* Cantidad */}
-                  <div className="flex items-center gap-2 mt-2">
+                  {/* Cantidad — touch targets 44px */}
+                  <div className="flex items-center gap-1 mt-2">
                     <button
                       onClick={() => actualizarCantidad(producto.id_producto, cantidad - 1)}
-                      className="p-0.5 rounded border border-gray-300 hover:bg-gray-100 transition-colors"
+                      className="w-8 h-8 rounded-lg border border-gray-300 hover:bg-gray-100 active:bg-gray-200 transition-colors flex items-center justify-center flex-shrink-0"
                     >
                       <Minus size={14} />
                     </button>
-                    <span className="text-sm w-6 text-center font-medium">{cantidad}</span>
+                    <span className="text-sm w-8 text-center font-semibold">{cantidad}</span>
                     <button
                       onClick={() => actualizarCantidad(producto.id_producto, cantidad + 1)}
                       disabled={producto.tipo === 'fisico' && producto.stock !== undefined && cantidad >= producto.stock}
-                      className="p-0.5 rounded border border-gray-300 hover:bg-gray-100 transition-colors disabled:opacity-40"
+                      className="w-8 h-8 rounded-lg border border-gray-300 hover:bg-gray-100 active:bg-gray-200 transition-colors flex items-center justify-center flex-shrink-0 disabled:opacity-40"
                     >
                       <Plus size={14} />
                     </button>
                     <button
                       onClick={() => quitar(producto.id_producto)}
-                      className="ml-auto p-0.5 text-red-400 hover:text-red-600 transition-colors"
+                      className="ml-auto w-8 h-8 flex items-center justify-center text-red-400 hover:text-red-600 active:text-red-700 transition-colors"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 </div>
