@@ -35,4 +35,11 @@ coverage/
 *.swp
 *.swo
 
+# Claude Code
+.claude/settings.local.json
+.claude/settings.json
+
 .vercel
+__pycache__
+.next
+.venv
