@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
+import api from '../lib/api.ts'
 import axios from 'axios'
 
 type Stage = 'request' | 'sent' | 'reset' | 'done' | 'error'
@@ -19,7 +20,7 @@ export default function ResetPasswordPage() {
     e.preventDefault()
     setLoading(true)
     try {
-      await axios.post('/api/auth/forgot-password', { email })
+      await api.post('/api/auth/forgot-password', { email })
       setStage('sent')
     } catch {
       setMsg('Ocurrió un error. Intenta nuevamente.')
@@ -41,7 +42,7 @@ export default function ResetPasswordPage() {
     setLoading(true)
     setMsg('')
     try {
-      await axios.post('/api/auth/reset-password', { token, password })
+      await api.post('/api/auth/reset-password', { token, password })
       setStage('done')
     } catch (err: unknown) {
       const errMsg = axios.isAxiosError(err) ? err.response?.data?.error : 'Enlace inválido o expirado.'

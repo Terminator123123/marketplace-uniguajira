@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { Search, SlidersHorizontal, Star, ChevronLeft, ChevronRight } from 'lucide-react'
+import api from '../lib/api.ts'
 import axios from 'axios'
 import type { Producto } from '@marketplace/shared'
 
@@ -36,7 +37,7 @@ export default function CatalogPage() {
     if (busqueda) params.set('busqueda', busqueda)
     if (categoria) params.set('categoria', categoria)
 
-    axios.get(`/api/productos?${params}`)
+    api.get(`/api/productos?${params}`)
       .then(r => {
         setProductos(r.data.data)
         setTotal(r.data.total)

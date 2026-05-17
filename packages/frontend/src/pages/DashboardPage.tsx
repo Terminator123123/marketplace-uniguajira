@@ -7,6 +7,7 @@ import {
   Search, AlertCircle, MapPin, ClipboardList, Truck, Ban, CreditCard,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import api from '../lib/api.ts'
 import axios from 'axios'
 import api from '../lib/api.ts'
 import { getSocket } from '../lib/socket.ts'
@@ -671,7 +672,7 @@ function DrawerProducto({ open, producto, categoriaInicial, token, onClose, onSa
     try {
       const fd = new FormData()
       fd.append('imagen', file)
-      const res = await axios.post(`/api/uploads/producto/${savedId}/imagenes`, fd, {
+      const res = await api.post(`/api/uploads/producto/${savedId}/imagenes`, fd, {
         headers: { ...headers, 'Content-Type': 'multipart/form-data' },
       })
       setImagenes(prev => [...prev, res.data.data])
@@ -1066,7 +1067,7 @@ function FormTienda({ token, tienda, onSaved }: {
     setUploadingLogo(true)
     try {
       const fd = new FormData(); fd.append('imagen', file)
-      const res = await axios.post('/api/uploads/tienda/logo', fd, {
+      const res = await api.post('/api/uploads/tienda/logo', fd, {
         headers: { ...headers, 'Content-Type': 'multipart/form-data' },
       })
       setLogoUrl(res.data.data.logo_url)
@@ -1079,7 +1080,7 @@ function FormTienda({ token, tienda, onSaved }: {
     setUploadingBanner(true)
     try {
       const fd = new FormData(); fd.append('imagen', file)
-      const res = await axios.post('/api/uploads/tienda/banner', fd, {
+      const res = await api.post('/api/uploads/tienda/banner', fd, {
         headers: { ...headers, 'Content-Type': 'multipart/form-data' },
       })
       setBannerUrl(res.data.data.banner_url)

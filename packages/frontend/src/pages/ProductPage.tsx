@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { ShoppingCart, Star, Store, ChevronLeft, ChevronRight, Check } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import api from '../lib/api.ts'
 import axios from 'axios'
 import type { Producto } from '@marketplace/shared'
 import { useCartStore } from '../store/cart.ts'
@@ -15,7 +16,7 @@ export default function ProductPage() {
   const agregar = useCartStore(s => s.agregar)
 
   useEffect(() => {
-    axios.get(`/api/productos/${id}`)
+    api.get(`/api/productos/${id}`)
       .then(r => setProducto(r.data.data))
       .finally(() => setLoading(false))
   }, [id])

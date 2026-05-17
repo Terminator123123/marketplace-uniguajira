@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/auth.ts'
+import api from '../lib/api.ts'
 import axios from 'axios'
 
 const schema = z.object({
@@ -18,7 +19,7 @@ export default function LoginPage() {
 
   async function onSubmit(data: Form) {
     try {
-      const res = await axios.post('/api/auth/login', data)
+      const res = await api.post('/api/auth/login', data)
       setAuth(res.data.data.access_token, res.data.data.usuario)
       navigate('/')
     } catch (err: unknown) {

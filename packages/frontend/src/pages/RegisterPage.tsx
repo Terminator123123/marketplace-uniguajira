@@ -2,6 +2,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Link, useNavigate } from 'react-router-dom'
+import api from '../lib/api.ts'
 import axios from 'axios'
 import { useState } from 'react'
 
@@ -35,7 +36,7 @@ export default function RegisterPage() {
     if (!aceptaTerminos) { setErrorTerminos(true); return }
     setErrorTerminos(false)
     try {
-      await axios.post('/api/auth/register', data)
+      await api.post('/api/auth/register', data)
       navigate('/verificar-email', { replace: true })
     } catch (err: unknown) {
       const msg = axios.isAxiosError(err) ? err.response?.data?.error : 'Error al registrarse'
