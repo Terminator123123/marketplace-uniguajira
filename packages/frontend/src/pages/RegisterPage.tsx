@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Link, useNavigate } from 'react-router-dom'
 import axios from 'axios'
+import { useState } from 'react'
 
 const DOMINIO = '@uniguajira.edu.co'
 
@@ -27,8 +28,12 @@ const FACULTADES = [
 export default function RegisterPage() {
   const { register, handleSubmit, formState: { errors, isSubmitting }, setError } = useForm<Form>({ resolver: zodResolver(schema) })
   const navigate = useNavigate()
+  const [aceptaTerminos, setAceptaTerminos] = useState(false)
+  const [errorTerminos, setErrorTerminos] = useState(false)
 
   async function onSubmit(data: Form) {
+    if (!aceptaTerminos) { setErrorTerminos(true); return }
+    setErrorTerminos(false)
     try {
       await axios.post('/api/auth/register', data)
       navigate('/verificar-email', { replace: true })
@@ -70,6 +75,28 @@ export default function RegisterPage() {
               {FACULTADES.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
           </div>
+
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={aceptaTerminos}
+              onChange={e => { setAceptaTerminos(e.target.checked); setErrorTerminos(false) }}
+              className="mt-0.5 w-4 h-4 rounded border-gray-300 text-green-600 flex-shrink-0"
+            />
+            <span className="text-sm text-gray-600">
+              Acepto los{' '}
+              <Link to="/legal" target="_blank" className="text-green-700 font-medium hover:underline">
+                Términos y Condiciones
+              </Link>
+              {' '}y la{' '}
+              <Link to="/legal?tab=privacidad" target="_blank" className="text-green-700 font-medium hover:underline">
+                Política de Privacidad
+              </Link>
+            </span>
+          </label>
+          {errorTerminos && (
+            <p className="text-red-500 text-xs">Debes aceptar los términos y condiciones para continuar.</p>
+          )}
 
           {errors.root && <p className="text-red-500 text-sm text-center">{errors.root.message}</p>}
 

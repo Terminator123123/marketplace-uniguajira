@@ -22,6 +22,7 @@ import FavoritosPage from './pages/FavoritosPage.tsx'
 import PerfilPage from './pages/PerfilPage.tsx'
 import MisPedidosPage from './pages/MisPedidosPage.tsx'
 import PagoResultadoPage from './pages/PagoResultadoPage.tsx'
+import LegalPage from './pages/LegalPage.tsx'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore(s => s.token)
@@ -101,6 +102,7 @@ export default function App() {
           <Route path="pago/resultado" element={
             <ProtectedRoute><PagoResultadoPage /></ProtectedRoute>
           } />
+          <Route path="legal" element={<LegalPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>

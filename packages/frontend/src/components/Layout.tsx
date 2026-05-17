@@ -74,8 +74,14 @@ export default function Layout() {
 
       <CartDrawer />
 
-      <footer className="bg-gray-800 text-gray-400 text-center py-4 text-sm">
-        © 2026 Marketplace Uniguajira — Universidad de La Guajira
+      <footer className="bg-gray-800 text-gray-400 text-center py-4 text-sm space-y-1">
+        <p>© 2026 Marketplace Uniguajira — Universidad de La Guajira</p>
+        <div className="flex justify-center gap-4 text-xs">
+          <Link to="/legal" className="hover:text-white transition-colors">Términos y Condiciones</Link>
+          <Link to="/legal?tab=privacidad" className="hover:text-white transition-colors">Privacidad</Link>
+          <Link to="/legal?tab=devoluciones" className="hover:text-white transition-colors">Devoluciones</Link>
+          <a href="mailto:marketplace@uniguajira.edu.co" className="hover:text-white transition-colors">Contacto</a>
+        </div>
       </footer>
     </div>
   )

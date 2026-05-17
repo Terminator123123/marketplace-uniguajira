@@ -29,6 +29,8 @@ export default function CheckoutPage() {
   const [paso, setPaso] = useState<'carrito' | 'pagando'>('carrito')
   const [widgetData, setWidgetData] = useState<WidgetData | null>(null)
   const widgetRef = useRef<HTMLDivElement>(null)
+  const [aceptaTerminos, setAceptaTerminos] = useState(false)
+  const [errorTerminos, setErrorTerminos] = useState(false)
 
   const grupos = useMemo(() => {
     const map = new Map<string, { tienda_nombre: string; items: typeof items }>()
@@ -81,6 +83,8 @@ export default function CheckoutPage() {
   }
 
   async function handleIrAPagar() {
+    if (!aceptaTerminos) { setErrorTerminos(true); return }
+    setErrorTerminos(false)
     setLoading(true)
     setError('')
     try {
@@ -269,6 +273,22 @@ export default function CheckoutPage() {
               <span>Total</span>
               <span>${totalFinal.toLocaleString('es-CO')} COP</span>
             </div>
+
+            <label className="flex items-start gap-2 cursor-pointer mt-1">
+              <input
+                type="checkbox"
+                checked={aceptaTerminos}
+                onChange={e => { setAceptaTerminos(e.target.checked); setErrorTerminos(false) }}
+                className="mt-0.5 w-4 h-4 rounded border-gray-300 text-green-600 flex-shrink-0"
+              />
+              <span className="text-xs text-gray-500">
+                Acepto los{' '}
+                <a href="/legal" target="_blank" className="text-green-700 hover:underline">Términos y Condiciones</a>
+                {' '}y la{' '}
+                <a href="/legal" target="_blank" className="text-green-700 hover:underline">Política de Devoluciones</a>
+              </span>
+            </label>
+            {errorTerminos && <p className="text-red-500 text-xs">Debes aceptar los términos para continuar.</p>}
 
             {error && <p className="text-red-500 text-xs">{error}</p>}
 
