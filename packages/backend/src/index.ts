@@ -26,6 +26,7 @@ const app = express()
 const PORT = process.env['PORT'] ?? 3001
 const FRONTEND_URL = process.env['FRONTEND_URL'] ?? 'http://localhost:5173'
 
+app.set('trust proxy', 1)
 app.use(helmet())
 app.use(cors({ origin: FRONTEND_URL, credentials: true }))
 app.use(express.json({ limit: '10mb' }))
