@@ -29,7 +29,7 @@ interface Solicitud {
   created_at: string
 }
 
-type Tab = 'resumen' | 'pedidos' | 'menu' | 'inventario' | 'tienda' | 'admin'
+type Tab = 'resumen' | 'pedidos' | 'menu' | 'inventario' | 'tienda' | 'configuracion' | 'admin'
 
 export default function DashboardPage() {
   const { usuario, token } = useAuthStore()
@@ -159,6 +159,7 @@ export default function DashboardPage() {
     { key: 'menu', label: 'Menú', icon: Package },
     { key: 'inventario', label: 'Inventario', icon: Boxes },
     { key: 'tienda', label: 'Mi tienda', icon: Store },
+    { key: 'configuracion', label: 'Configuración', icon: Settings },
     ...(esAdmin ? [{ key: 'admin' as Tab, label: 'Admin', icon: Shield }] : []),
   ]
 
@@ -189,7 +190,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6 flex gap-6 items-start">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 py-4 sm:py-6 flex gap-6 items-start">
         {/* Sidebar */}
         <aside className="w-52 flex-shrink-0 hidden md:block">
           <nav className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -282,10 +283,15 @@ export default function DashboardPage() {
           )}
 
           {tab === 'tienda' && (
-            <>
-              <FormTienda token={token!} tienda={tienda} onSaved={setTienda} />
+            <FormTienda token={token!} tienda={tienda} onSaved={setTienda} />
+          )}
+          {tab === 'configuracion' && (
+            <div className="space-y-4">
+              <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2">
+                <Settings size={16} className="text-green-700" /> Configuración de cuenta
+              </h2>
               <FormCuentaBancaria />
-            </>
+            </div>
           )}
           {tab === 'admin' && <AdminPanel token={token!} />}
         </main>
@@ -1271,7 +1277,7 @@ function FormCuentaBancaria() {
       <p className="text-xs text-gray-400 mb-4">Aquí recibirás el pago de tus ventas (85% del total, descontada la comisión de plataforma).</p>
 
       <form onSubmit={handleSubmit} className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Banco *</label>
             <select value={form.banco_nombre} onChange={set('banco_nombre')} className="input" required>
@@ -1294,7 +1300,7 @@ function FormCuentaBancaria() {
             placeholder="Ej: 12345678901" pattern="[0-9]+" title="Solo números" />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Tipo doc. *</label>
             <select value={form.tipo_doc} onChange={set('tipo_doc')} className="input" required>
@@ -1537,26 +1543,31 @@ function TabPedidos({ ventas, onEstadoChange }: {
         </div>
       </div>
 
-      {/* Cabecera tabla */}
-      <div className="flex items-center gap-0 bg-gray-50 border-b border-gray-200 px-0">
-        <div className="w-44 flex-shrink-0 px-4 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Fecha</div>
-        <div className="w-36 flex-shrink-0 px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Estado</div>
-        <div className="w-32 flex-shrink-0 px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Cobras</div>
-        <div className="flex-1 px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Cliente</div>
-        <div className="w-52 flex-shrink-0 px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Acciones</div>
-      </div>
-
-      {/* Filas */}
-      {lista.length === 0 ? (
-        <div className="text-center py-20">
-          <div className="text-4xl mb-3">🍴</div>
-          <p className="text-gray-500 text-sm">Crea pedidos para cada tipo de servicio</p>
+      {/* Tabla con scroll horizontal en móvil */}
+      <div className="overflow-x-auto">
+        {/* Cabecera tabla */}
+        <div className="flex items-center gap-0 bg-gray-50 border-b border-gray-200 px-0 min-w-[640px]">
+          <div className="w-44 flex-shrink-0 px-4 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Fecha</div>
+          <div className="w-36 flex-shrink-0 px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Estado</div>
+          <div className="w-32 flex-shrink-0 px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Cobras</div>
+          <div className="flex-1 px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Cliente</div>
+          <div className="w-52 flex-shrink-0 px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Acciones</div>
         </div>
-      ) : (
-        lista.map((o, i) => (
-          <FilaPedido key={o.id_orden} orden={o} idx={i} onEstadoChange={onEstadoChange} />
-        ))
-      )}
+
+        {/* Filas */}
+        {lista.length === 0 ? (
+          <div className="text-center py-20">
+            <div className="text-4xl mb-3">🍴</div>
+            <p className="text-gray-500 text-sm">Crea pedidos para cada tipo de servicio</p>
+          </div>
+        ) : (
+          <div className="min-w-[640px]">
+            {lista.map((o, i) => (
+              <FilaPedido key={o.id_orden} orden={o} idx={i} onEstadoChange={onEstadoChange} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
