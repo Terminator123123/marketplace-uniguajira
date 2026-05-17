@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { Search, SlidersHorizontal, Star, ChevronLeft, ChevronRight } from 'lucide-react'
 import api from '../lib/api.ts'
-import axios from 'axios'
 import type { Producto } from '@marketplace/shared'
 
 const CATEGORIAS = ['Todos', 'artesanías', 'papelería', 'tecnología', 'alimentos', 'tutorías', 'soporte técnico', 'diseño gráfico']

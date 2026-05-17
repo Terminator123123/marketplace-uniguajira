@@ -3,7 +3,6 @@ import { useParams } from 'react-router-dom'
 import { ShoppingCart, Star, Store, ChevronLeft, ChevronRight, Check } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import api from '../lib/api.ts'
-import axios from 'axios'
 import type { Producto } from '@marketplace/shared'
 import { useCartStore } from '../store/cart.ts'
 

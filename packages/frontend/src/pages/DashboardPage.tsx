@@ -8,8 +8,6 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import api from '../lib/api.ts'
-import axios from 'axios'
-import api from '../lib/api.ts'
 import { getSocket } from '../lib/socket.ts'
 import { useAuthStore } from '../store/auth.ts'
 import type { Orden, OrdenEstado, Producto } from '@marketplace/shared'
