@@ -1,6 +1,8 @@
 import { Router, type Request, type Response } from 'express'
 import crypto from 'crypto'
 import { PrismaClient } from '@prisma/client'
+import { getIO } from '../socket.js'
+import { enviarCambioEstadoOrden } from '../services/email.js'
 
 const router = Router()
 const prisma = new PrismaClient()
@@ -47,7 +49,7 @@ router.post('/wompi', async (req: Request, res: Response) => {
 
   const orden = await prisma.orden.findFirst({
     where: { id_orden: referencia },
-    include: { items: true },
+    include: { items: { include: { producto: { select: { id_vendedor: true } } } } },
   })
 
   if (!orden) { res.sendStatus(200); return }
@@ -71,12 +73,42 @@ router.post('/wompi', async (req: Request, res: Response) => {
       }
     })
     console.log('[wompi] Orden pagada:', orden.id_orden)
+
+    // Notificar al comprador (WebSocket + email)
+    const io = getIO()
+    io?.to(`user:${orden.id_comprador}`).emit('orden_actualizada', {
+      id_orden: orden.id_orden,
+      estado: 'pagada',
+    })
+
+    // Notificar a cada vendedor de la orden
+    const vendedores = new Set(orden.items.map(i => i.producto?.id_vendedor).filter(Boolean))
+    for (const vendedorId of vendedores) {
+      io?.to(`user:${vendedorId}`).emit('orden_pagada', {
+        id_orden: orden.id_orden,
+        total: Number(orden.total),
+      })
+    }
+
+    // Email al comprador
+    prisma.usuario.findUnique({ where: { id_usuario: orden.id_comprador }, select: { nombre: true, email: true } })
+      .then(c => {
+        if (c) enviarCambioEstadoOrden(c.nombre, c.email, 'pagada', orden.id_orden)
+          .catch(e => console.error('[email estado_orden]', e))
+      })
+      .catch(() => {})
+
   } else if (['DECLINED', 'VOIDED', 'ERROR'].includes(estado)) {
     await prisma.orden.update({
       where: { id_orden: orden.id_orden },
       data: { estado: 'cancelada' },
     })
     console.log('[wompi] Orden cancelada por pago fallido:', orden.id_orden, estado)
+
+    getIO()?.to(`user:${orden.id_comprador}`).emit('orden_actualizada', {
+      id_orden: orden.id_orden,
+      estado: 'cancelada',
+    })
   }
 
   res.sendStatus(200)

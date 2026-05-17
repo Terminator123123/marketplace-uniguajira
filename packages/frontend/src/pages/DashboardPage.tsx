@@ -4,7 +4,7 @@ import {
   Loader2, X, Upload, Trash2, Send, CheckCircle, Clock, ExternalLink,
   LayoutDashboard, Settings, Shield, Eye, EyeOff, ChevronRight,
   ChevronDown, ChevronUp, GripVertical, MoreVertical, Boxes,
-  Search, AlertCircle, MapPin, ClipboardList, Truck, Ban,
+  Search, AlertCircle, MapPin, ClipboardList, Truck, Ban, CreditCard,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
@@ -121,7 +121,9 @@ export default function DashboardPage() {
   }
 
   const ordenesResumen = esVendedor ? ventas : ordenes
-  const totalVentas = ordenesResumen.filter(o => o.estado === 'completada').reduce((s, o) => s + Number(o.total), 0)
+  const completadas = ordenesResumen.filter(o => o.estado === 'completada')
+  const totalVentas = completadas.reduce((s, o) => s + Number(o.total), 0)
+  const totalNeto = completadas.reduce((s, o) => s + (o.monto_vendedor != null ? Number(o.monto_vendedor) : Number(o.total) * 0.85), 0)
   const pendientes = ordenesResumen.filter(o => o.estado === 'pendiente').length
 
   if (loading) return (
@@ -211,8 +213,9 @@ export default function DashboardPage() {
 
           <div className="mt-4 bg-white rounded-xl border border-gray-200 p-4 space-y-3">
             <div>
-              <p className="text-xs text-gray-400">Ventas totales</p>
-              <p className="text-lg font-bold text-gray-800">${totalVentas.toLocaleString('es-CO')}</p>
+              <p className="text-xs text-gray-400">Ingresos netos</p>
+              <p className="text-lg font-bold text-green-700">${totalNeto.toLocaleString('es-CO')}</p>
+              <p className="text-[10px] text-gray-400">Bruto: ${totalVentas.toLocaleString('es-CO')} · com. 15%</p>
             </div>
             <div className="flex justify-between text-xs">
               <div>
@@ -251,7 +254,7 @@ export default function DashboardPage() {
           </div>
 
           {tab === 'resumen' && (
-            <TabResumen ordenes={ventas} totalVentas={totalVentas} pendientes={pendientes} esVendedor />
+            <TabResumen ordenes={ventas} totalVentas={totalVentas} totalNeto={totalNeto} pendientes={pendientes} esVendedor />
           )}
 
           {tab === 'pedidos' && (
@@ -278,7 +281,12 @@ export default function DashboardPage() {
             />
           )}
 
-          {tab === 'tienda' && <FormTienda token={token!} tienda={tienda} onSaved={setTienda} />}
+          {tab === 'tienda' && (
+            <>
+              <FormTienda token={token!} tienda={tienda} onSaved={setTienda} />
+              <FormCuentaBancaria />
+            </>
+          )}
           {tab === 'admin' && <AdminPanel token={token!} />}
         </main>
       </div>
@@ -853,18 +861,41 @@ function DrawerProducto({ open, producto, categoriaInicial, token, onClose, onSa
 
 // ── Tab Resumen ───────────────────────────────────────────────────────────────
 
-function TabResumen({ ordenes, totalVentas, pendientes, esVendedor }: {
+function TabResumen({ ordenes, totalVentas, totalNeto, pendientes, esVendedor }: {
   ordenes: Orden[]
   totalVentas: number
+  totalNeto?: number
   pendientes: number
   esVendedor: boolean
 }) {
   const { usuario } = useAuthStore()
+  const comisionTotal = totalVentas - (totalNeto ?? totalVentas)
   return (
     <>
+      {esVendedor && totalVentas > 0 && (
+        <div className="mb-5 bg-white rounded-xl border border-gray-200 p-4">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Desglose de ingresos</p>
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <p className="text-[11px] text-gray-400">Total cobrado al cliente</p>
+              <p className="text-base font-bold text-gray-800">${totalVentas.toLocaleString('es-CO')}</p>
+            </div>
+            <div className="text-gray-300 text-lg">−</div>
+            <div className="flex-1">
+              <p className="text-[11px] text-gray-400">Comisión plataforma (15%)</p>
+              <p className="text-base font-bold text-red-500">−${comisionTotal.toLocaleString('es-CO')}</p>
+            </div>
+            <div className="text-gray-300 text-lg">=</div>
+            <div className="flex-1">
+              <p className="text-[11px] text-gray-400">Tus ingresos netos</p>
+              <p className="text-base font-bold text-green-600">${(totalNeto ?? totalVentas).toLocaleString('es-CO')}</p>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
-          { icon: TrendingUp, label: esVendedor ? 'Ventas totales' : 'Gastado', value: `$${totalVentas.toLocaleString('es-CO')}`, color: 'text-green-600', bg: 'bg-green-50' },
+          { icon: TrendingUp, label: esVendedor ? 'Ingresos netos' : 'Gastado', value: `$${(esVendedor ? (totalNeto ?? totalVentas) : totalVentas).toLocaleString('es-CO')}`, color: 'text-green-600', bg: 'bg-green-50' },
           { icon: ShoppingBag, label: esVendedor ? 'Total órdenes' : 'Mis órdenes', value: ordenes.length, color: 'text-blue-600', bg: 'bg-blue-50' },
           { icon: Clock, label: 'Pendientes', value: pendientes, color: 'text-orange-500', bg: 'bg-orange-50' },
           { icon: Star, label: 'Rating', value: Number(usuario?.rating_promedio ?? 0).toFixed(1), color: 'text-yellow-500', bg: 'bg-yellow-50' },
@@ -1191,6 +1222,118 @@ function FormTienda({ token, tienda, onSaved }: {
   )
 }
 
+// ── Formulario Cuenta Bancaria (para liquidaciones) ──────────────────────────
+
+const BANCOS_CO = [
+  'Bancolombia', 'Banco de Bogotá', 'Davivienda', 'BBVA Colombia',
+  'Banco Popular', 'Banco de Occidente', 'Scotiabank Colpatria',
+  'Banco Caja Social', 'Banco Agrario', 'Nequi', 'Daviplata', 'Otro',
+]
+
+function FormCuentaBancaria() {
+  const [form, setForm] = useState({
+    banco_nombre: '', tipo_cuenta: 'AHORROS', numero: '',
+    tipo_doc: 'CC', numero_doc: '', titular: '', email: '',
+  })
+  const [loading, setLoading] = useState(false)
+  const [fetching, setFetching] = useState(true)
+  const [ok, setOk] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    api.get('/api/pagos/mi-cuenta-bancaria')
+      .then(r => { if (r.data.data) setForm({ ...r.data.data }) })
+      .catch(() => {})
+      .finally(() => setFetching(false))
+  }, [])
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault(); setLoading(true); setError(''); setOk(false)
+    try {
+      await api.put('/api/pagos/mi-cuenta-bancaria', form)
+      setOk(true)
+    } catch (e: unknown) {
+      setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Error al guardar')
+    } finally { setLoading(false) }
+  }
+
+  const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm(f => ({ ...f, [k]: e.target.value }))
+
+  if (fetching) return null
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5 max-w-2xl mt-4">
+      <div className="flex items-center gap-2 mb-1">
+        <CreditCard size={16} className="text-green-700" />
+        <h2 className="font-semibold text-gray-800 text-sm">Cuenta bancaria para pagos</h2>
+      </div>
+      <p className="text-xs text-gray-400 mb-4">Aquí recibirás el pago de tus ventas (85% del total, descontada la comisión de plataforma).</p>
+
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Banco *</label>
+            <select value={form.banco_nombre} onChange={set('banco_nombre')} className="input" required>
+              <option value="">Selecciona banco</option>
+              {BANCOS_CO.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Tipo de cuenta *</label>
+            <select value={form.tipo_cuenta} onChange={set('tipo_cuenta')} className="input" required>
+              <option value="AHORROS">Ahorros</option>
+              <option value="CORRIENTE">Corriente</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Número de cuenta *</label>
+          <input value={form.numero} onChange={set('numero')} className="input" required
+            placeholder="Ej: 12345678901" pattern="[0-9]+" title="Solo números" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Tipo doc. *</label>
+            <select value={form.tipo_doc} onChange={set('tipo_doc')} className="input" required>
+              <option value="CC">Cédula (CC)</option>
+              <option value="NIT">NIT</option>
+              <option value="CE">Cédula Extranjera</option>
+              <option value="PPN">Pasaporte</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Número doc. *</label>
+            <input value={form.numero_doc} onChange={set('numero_doc')} className="input" required
+              placeholder="Ej: 1000123456" />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Titular de la cuenta *</label>
+          <input value={form.titular} onChange={set('titular')} className="input" required
+            placeholder="Nombre completo como aparece en el banco" />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Email para notificaciones *</label>
+          <input type="email" value={form.email} onChange={set('email')} className="input" required
+            placeholder="tu@correo.com" />
+        </div>
+
+        {error && <p className="text-red-500 text-sm">{error}</p>}
+        {ok && <p className="text-green-600 text-sm flex items-center gap-1"><CheckCircle size={14} /> Cuenta guardada</p>}
+
+        <button type="submit" disabled={loading} className="btn-primary flex items-center gap-2">
+          {loading ? <><Loader2 size={15} className="animate-spin" /> Guardando...</> : 'Guardar cuenta bancaria'}
+        </button>
+      </form>
+    </div>
+  )
+}
+
 // ── Tab Pedidos (vendedor) — estilo OlaClick ─────────────────────────────────
 
 const ESTADO_CHIP: Record<string, { label: string; color: string; bg: string }> = {
@@ -1268,9 +1411,14 @@ function FilaPedido({ orden, idx, onEstadoChange }: {
       </div>
 
       {/* TOTAL */}
-      <div className="w-28 flex-shrink-0 px-3 py-3">
-        <p className="text-sm font-bold text-gray-800">${Number(orden.total).toLocaleString('es-CO')}</p>
-        <p className="text-[10px] text-gray-400 capitalize mt-0.5">{orden.metodo_pago}</p>
+      <div className="w-32 flex-shrink-0 px-3 py-3">
+        <p className="text-xs text-gray-400 line-through">${Number(orden.total).toLocaleString('es-CO')}</p>
+        <p className="text-sm font-bold text-green-600">
+          ${(orden.monto_vendedor != null ? Number(orden.monto_vendedor) : Number(orden.total) * 0.85).toLocaleString('es-CO')}
+        </p>
+        <p className="text-[10px] text-gray-400 mt-0.5">
+          -{orden.comision_porcentaje ?? 15}% plat. · {orden.metodo_pago}
+        </p>
       </div>
 
       {/* CLIENTE */}
@@ -1396,7 +1544,7 @@ function TabPedidos({ ventas, onEstadoChange }: {
       <div className="flex items-center gap-0 bg-gray-50 border-b border-gray-200 px-0">
         <div className="w-44 flex-shrink-0 px-4 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Fecha</div>
         <div className="w-36 flex-shrink-0 px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Estado</div>
-        <div className="w-28 flex-shrink-0 px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Total</div>
+        <div className="w-32 flex-shrink-0 px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Cobras</div>
         <div className="flex-1 px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Cliente</div>
         <div className="w-52 flex-shrink-0 px-3 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Acciones</div>
       </div>

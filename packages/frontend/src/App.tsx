@@ -21,6 +21,7 @@ import OrdenDetallePage from './pages/OrdenDetallePage.tsx'
 import FavoritosPage from './pages/FavoritosPage.tsx'
 import PerfilPage from './pages/PerfilPage.tsx'
 import MisPedidosPage from './pages/MisPedidosPage.tsx'
+import PagoResultadoPage from './pages/PagoResultadoPage.tsx'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore(s => s.token)
@@ -40,6 +41,10 @@ function SocketProvider() {
       push('success', `Nueva orden recibida — $${data.total.toLocaleString('es-CO')} COP`)
     })
 
+    socket.on('orden_pagada', (data: { id_orden: string; total: number }) => {
+      push('success', `¡Pago confirmado! Orden por $${data.total.toLocaleString('es-CO')} COP`)
+    })
+
     socket.on('orden_actualizada', (data: { estado: string }) => {
       const estados: Record<string, string> = {
         pagada: 'Tu pago fue confirmado',
@@ -53,6 +58,7 @@ function SocketProvider() {
     return () => {
       socket.off('nueva_orden')
       socket.off('orden_actualizada')
+      socket.off('orden_pagada')
     }
   }, [token, push])
 
@@ -91,6 +97,9 @@ export default function App() {
           } />
           <Route path="mis-pedidos" element={
             <ProtectedRoute><MisPedidosPage /></ProtectedRoute>
+          } />
+          <Route path="pago/resultado" element={
+            <ProtectedRoute><PagoResultadoPage /></ProtectedRoute>
           } />
           <Route path="*" element={<NotFoundPage />} />
         </Route>

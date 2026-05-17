@@ -1,30 +1,35 @@
-import { useState, useMemo } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
-import { ShoppingCart, ArrowLeft, CreditCard, Loader2, Bike, MapPin } from 'lucide-react'
-import axios from 'axios'
+import { useState, useMemo, useEffect, useRef } from 'react'
+import { Link } from 'react-router-dom'
+import { ShoppingCart, ArrowLeft, Loader2, Bike, MapPin, CreditCard, Lock } from 'lucide-react'
+import api from '../lib/api.ts'
 import { useCartStore } from '../store/cart.ts'
 import { useAuthStore } from '../store/auth.ts'
 import type { MetodoPago } from '@marketplace/shared'
 
-const METODOS: { value: MetodoPago; label: string; icon: string }[] = [
-  { value: 'nequi', label: 'Nequi', icon: '💜' },
-  { value: 'daviplata', label: 'Daviplata', icon: '🔴' },
-  { value: 'pse', label: 'PSE', icon: '🏦' },
-]
-
 const COSTO_DELIVERY_BASE = 1500
 const COSTO_DELIVERY_EXTRA = 500
 
+interface WidgetData {
+  publicKey: string
+  amountInCents: number
+  reference: string
+  currency: string
+  firma: string
+  redirectUrl: string
+}
+
 export default function CheckoutPage() {
-  const { items, total, vaciar } = useCartStore()
-  const { token } = useAuthStore()
-  const navigate = useNavigate()
+  const { items, total } = useCartStore()
+  const { usuario } = useAuthStore()
+
   const [metodoPago, setMetodoPago] = useState<MetodoPago>('nequi')
   const [delivery, setDelivery] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [paso, setPaso] = useState<'carrito' | 'pagando'>('carrito')
+  const [widgetData, setWidgetData] = useState<WidgetData | null>(null)
+  const widgetRef = useRef<HTMLDivElement>(null)
 
-  // Agrupar items por tienda
   const grupos = useMemo(() => {
     const map = new Map<string, { tienda_nombre: string; items: typeof items }>()
     for (const item of items) {
@@ -42,6 +47,29 @@ export default function CheckoutPage() {
     : 0
   const totalFinal = total() + costoDelivery
 
+  // Montar el widget de Wompi cuando tengamos los datos
+  useEffect(() => {
+    if (!widgetData || paso !== 'pagando' || !widgetRef.current) return
+
+    const container = widgetRef.current
+    container.innerHTML = ''
+
+    const form = document.createElement('form')
+    const script = document.createElement('script')
+    script.src = 'https://checkout.wompi.co/widget.js'
+    script.setAttribute('data-render', 'button')
+    script.setAttribute('data-public-key', widgetData.publicKey)
+    script.setAttribute('data-currency', widgetData.currency)
+    script.setAttribute('data-amount-in-cents', String(widgetData.amountInCents))
+    script.setAttribute('data-reference', widgetData.reference)
+    script.setAttribute('data-signature:integrity', widgetData.firma)
+    script.setAttribute('data-redirect-url', widgetData.redirectUrl)
+    if (usuario?.nombre) script.setAttribute('data-customer-data:full-name', usuario.nombre)
+
+    form.appendChild(script)
+    container.appendChild(form)
+  }, [widgetData, paso, usuario])
+
   if (items.length === 0) {
     return (
       <div className="max-w-lg mx-auto px-4 py-20 text-center">
@@ -52,26 +80,77 @@ export default function CheckoutPage() {
     )
   }
 
-  async function handlePagar() {
-    if (!token) { navigate('/login'); return }
+  async function handleIrAPagar() {
     setLoading(true)
     setError('')
     try {
+      // 1. Crear la orden en el backend
       const payload = {
         items: items.map(i => ({ id_producto: i.producto.id_producto, cantidad: i.cantidad })),
         metodo_pago: metodoPago,
       }
-      await axios.post('/api/ordenes', payload, { headers: { Authorization: `Bearer ${token}` } })
-      vaciar()
-      navigate('/dashboard?orden=ok')
+      const ordenRes = await api.post('/api/ordenes', payload)
+      const ordenId: string = ordenRes.data.data.id_orden
+
+      // 2. Obtener datos firmados para el widget
+      const checkoutRes = await api.get(`/api/pagos/checkout-data/${ordenId}`)
+      setWidgetData(checkoutRes.data.data)
+      setPaso('pagando')
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error
-      setError(msg ?? 'Error al procesar el pedido. Intenta de nuevo.')
+      setError(msg ?? 'Error al iniciar el pago. Intenta de nuevo.')
     } finally {
       setLoading(false)
     }
   }
 
+  // ── Paso 2: mostrar widget de Wompi ──────────────────────────────────────────
+  if (paso === 'pagando' && widgetData) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-8">
+        <button
+          onClick={() => setPaso('carrito')}
+          className="flex items-center gap-1 text-gray-500 hover:text-gray-700 text-sm mb-6"
+        >
+          <ArrowLeft size={16} /> Volver al carrito
+        </button>
+
+        <div className="card space-y-5">
+          <div className="flex items-center gap-2">
+            <Lock size={16} className="text-green-700" />
+            <h2 className="font-semibold text-gray-800">Pago seguro</h2>
+          </div>
+
+          <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+            <div className="flex justify-between text-sm text-gray-500">
+              <span>Subtotal</span>
+              <span>${total().toLocaleString('es-CO')}</span>
+            </div>
+            {delivery && (
+              <div className="flex justify-between text-sm text-gray-500">
+                <span>Delivery</span>
+                <span>${costoDelivery.toLocaleString('es-CO')}</span>
+              </div>
+            )}
+            <div className="flex justify-between font-bold text-gray-800 pt-2 border-t border-gray-200">
+              <span>Total a pagar</span>
+              <span>${totalFinal.toLocaleString('es-CO')} COP</span>
+            </div>
+          </div>
+
+          <p className="text-xs text-gray-400 text-center">
+            Al hacer clic en "Pagar" serás redirigido al formulario seguro de Wompi.
+            Puedes usar Nequi, Daviplata, PSE o tarjeta.
+          </p>
+
+          {/* Wompi widget se monta aquí */}
+          <div ref={widgetRef} className="flex justify-center" />
+        </div>
+      </div>
+    )
+  }
+
+  // ── Paso 1: resumen del carrito ───────────────────────────────────────────────
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <Link to="/catalogo" className="flex items-center gap-1 text-gray-500 hover:text-gray-700 text-sm mb-6">
@@ -153,7 +232,11 @@ export default function CheckoutPage() {
           </h2>
 
           <div className="space-y-2">
-            {METODOS.map(m => (
+            {([
+              { value: 'nequi'     as MetodoPago, label: 'Nequi',     icon: '💜' },
+              { value: 'daviplata' as MetodoPago, label: 'Daviplata', icon: '🔴' },
+              { value: 'pse'       as MetodoPago, label: 'PSE',       icon: '🏦' },
+            ]).map(m => (
               <label key={m.value} className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
                 metodoPago === m.value ? 'border-green-600 bg-green-50' : 'border-gray-200 hover:border-gray-300'
               }`}>
@@ -190,12 +273,19 @@ export default function CheckoutPage() {
             {error && <p className="text-red-500 text-xs">{error}</p>}
 
             <button
-              onClick={handlePagar}
+              onClick={handleIrAPagar}
               disabled={loading}
               className="btn-primary w-full flex items-center justify-center gap-2 mt-2"
             >
-              {loading ? <><Loader2 size={18} className="animate-spin" /> Procesando...</> : 'Confirmar pedido'}
+              {loading
+                ? <><Loader2 size={18} className="animate-spin" /> Preparando pago...</>
+                : <><Lock size={14} /> Ir a pagar con Wompi</>
+              }
             </button>
+
+            <p className="text-[10px] text-gray-400 text-center">
+              Pago procesado por Wompi · Bancolombia Group
+            </p>
           </div>
         </div>
       </div>

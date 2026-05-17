@@ -51,11 +51,17 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
   })
 
   const total = itemsConPrecio.reduce((sum, i) => sum + i.subtotal, 0)
+  const COMISION_PCT = 15
+  const monto_comision = Math.round(total * (COMISION_PCT / 100) * 100) / 100
+  const monto_vendedor = Math.round((total - monto_comision) * 100) / 100
 
   const orden = await prisma.orden.create({
     data: {
       id_comprador: req.user!.id,
       total,
+      comision_porcentaje: COMISION_PCT,
+      monto_comision,
+      monto_vendedor,
       metodo_pago,
       items: { create: itemsConPrecio },
     },

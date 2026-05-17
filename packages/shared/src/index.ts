@@ -116,6 +116,9 @@ export interface Orden {
   id_orden: string
   id_comprador: string
   total: number
+  comision_porcentaje?: number
+  monto_comision?: number
+  monto_vendedor?: number
   estado: OrdenEstado
   metodo_pago: MetodoPago
   referencia_pago?: string
