@@ -25,6 +25,7 @@ export interface Usuario {
 export interface UsuarioPublico {
   id_usuario: string
   nombre: string
+  email?: string
   rol: UserRole
   facultad?: string
   bio?: string

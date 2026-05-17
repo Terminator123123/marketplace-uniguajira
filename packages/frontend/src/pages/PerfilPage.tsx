@@ -393,12 +393,13 @@ export default function PerfilPage() {
   const [tab, setTab] = useState<Tab>('perfil')
   const esVendedor = usuario?.rol === 'vendedor' || usuario?.rol === 'admin'
 
-  const TABS: { key: Tab; label: string; icon: React.ElementType; vendorOnly?: boolean }[] = [
+  const ALL_TABS: { key: Tab; label: string; icon: React.ElementType; vendorOnly?: boolean }[] = [
     { key: 'perfil',    label: 'Mi perfil',       icon: User    },
     { key: 'seguridad', label: 'Seguridad',        icon: Shield  },
     { key: 'pagos',     label: 'Cuenta de pagos',  icon: CreditCard, vendorOnly: true },
     { key: 'sesion',    label: 'Sesión',            icon: LogOut  },
-  ].filter(t => !t.vendorOnly || esVendedor)
+  ]
+  const TABS = ALL_TABS.filter(t => !t.vendorOnly || esVendedor)
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
